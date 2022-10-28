@@ -215,7 +215,7 @@ def create_instances_from_document(
                     tokens.append(token)
                     segment_ids.append(0)
 
-                tokens.append(["SEP"])
+                tokens.append("[SEP]")
                 segment_ids.append(0)
 
                 for token in tokens_b:
@@ -374,7 +374,7 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length, max_pr
         features["masked_lm_positions"] = create_int_feature(masked_lm_positions)
         features["masked_lm_ids"] = create_int_feature(masked_lm_ids)
         features["masked_lm_weights"] = create_float_feature(masked_lm_weights)
-        features["next_sentence_label"] = create_int_feature(next_sentence_label)
+        features["next_sentence_label"] = create_int_feature([next_sentence_label])
 
         tf_example = tf.train.Example(features=tf.train.Features(feature=features))
 
@@ -433,11 +433,11 @@ def main(_argv):
     instances = create_training_instances(
         input_files,
         tokenizer,
-        FLAGS.max_seq_len,
+        FLAGS.max_seq_length,
         FLAGS.dupe_factor,
         FLAGS.short_seq_prob,
         FLAGS.masked_lm_prob,
-        FLAGS.masked_predictions_per_seq,
+        FLAGS.max_predictions_per_seq,
         rng
     )
 
@@ -451,7 +451,7 @@ def main(_argv):
         instances,
         tokenizer,
         FLAGS.max_seq_length,
-        FLAGS.masked_predictions_per_seq,
+        FLAGS.max_predictions_per_seq,
         output_files
     )
 

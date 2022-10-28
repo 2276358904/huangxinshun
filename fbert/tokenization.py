@@ -8,7 +8,7 @@ import unicodedata
 
 import tensorflow as tf
 
-from .tokenization_utils import _is_punctuation, _is_whitespace, _is_control, _is_chinese
+from tokenization_utils import _is_punctuation, _is_whitespace, _is_control, _is_chinese
 
 
 def convert_to_unicode(text):
@@ -90,7 +90,7 @@ def convert_by_vocab(vocab, items):
     """Converts a sequence of [tokens|ids] using the vocab."""
     output = []
     for item in items:
-        output.append(vocab[item])
+        output.append(vocab.get(item))
     return output
 
 
