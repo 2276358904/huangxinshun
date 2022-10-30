@@ -241,6 +241,7 @@ class FBertDataBuilder(object):
                         instances.append(instance)
                     current_sequences = []
                     current_length = 0
+                i += 1
         return instances
 
     def load_data(self, input_files: str, shuffle=True):
