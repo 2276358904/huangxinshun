@@ -164,24 +164,26 @@ class FBertDataBuilder(object):
             if self.random.random() < self.short_seq_prob:
                 target_seq_length = max(2, self.random.randint(2, max_num_tokens))
 
-            current_tokens = []
+            current_sequences = []
+            current_length = 0
             for i in range(len(document)):
-                current_token = document[i]
-                current_tokens.append(current_token)
-                if i == len(document) - 1 or len(current_tokens) >= target_seq_length:
-                    if current_tokens:  # equal to 'if current_tokens != []'.
+                current_sequence = document[i]
+                current_sequences.append(current_sequence)
+                current_length += len(current_sequence)
+                if i == len(document) - 1 or current_length >= target_seq_length:
+                    if current_sequences:  # equal to 'if current_tokens != []'.
                         # Sequence A.
                         # The variable `a_end` is how many tokens from `current_chunk` go into the 'A' (first) sentence.
                         a_end = 1
-                        if len(current_tokens) >= 2:
-                            a_end = self.random.randint(1, len(current_tokens) - 1)
+                        if len(current_sequences) >= 2:
+                            a_end = self.random.randint(1, len(current_sequences) - 1)
                         tokens_a = []
                         for j in range(a_end):
-                            tokens_a.append(current_tokens[j])
+                            tokens_a.extend(current_sequences[j])
 
                         # Sequence B.
                         tokens_b = []
-                        if len(current_tokens) == 1 or self.random.random() < 0.5:
+                        if len(current_sequences) == 1 or self.random.random() < 0.5:
                             is_random_next = True
                             target_b_length = target_seq_length - len(tokens_a)
                             random_document_index = 0
@@ -195,12 +197,12 @@ class FBertDataBuilder(object):
                                 tokens_b.append(random_document[j])
                                 if len(tokens_b) >= target_b_length:
                                     break
-                            num_unused_tokens = len(current_tokens) - len(tokens_a)
+                            num_unused_tokens = len(current_sequences) - len(tokens_a)
                             i -= num_unused_tokens
                         else:
                             is_random_next = False
-                            for j in range(a_end, len(current_tokens)):
-                                tokens_b.append(current_tokens[j])
+                            for j in range(a_end, len(current_sequences)):
+                                tokens_b.append(current_sequences[j])
 
                         self._truncate_sequence_pair(tokens_a, tokens_b)
 
@@ -260,7 +262,7 @@ class FBertDataBuilder(object):
                     # If exists the blank line, ignores it. we just take the contents of non-blank line.
                     if text:
                         tokens = self.tokenizer.tokenize(text)
-                        documents[-1].extend(tokens)
+                        documents[-1].append(tokens)
 
         # Removes the blank document.
         documents = [x for x in documents if x]
@@ -297,7 +299,7 @@ class FBertDataBuilder(object):
             token_type_ids = instance.token_type_ids
             mlm_labels = instance.mlm_labels
             nsp_labels = instance.nsp_labels
-
+            # Pads to max sequence length.
             while len(input_ids) < self.max_seq_length:
                 input_ids.append(0)
                 attention_mask.append(0)
@@ -310,14 +312,14 @@ class FBertDataBuilder(object):
             assert len(mlm_labels) == self.max_seq_length
             assert len(nsp_labels) == 1
 
-            features = collections.OrderedDict()
-            features["input_ids"] = tf.train.Feature(int64_list=tf.train.Int64List(value=input_ids))
-            features["attention_mask"] = tf.train.Feature(int64_list=tf.train.Int64List(value=attention_mask))
-            features["token_type_ids"] = tf.train.Feature(int64_list=tf.train.Int64List(value=token_type_ids))
-            features["mlm_labels"] = tf.train.Feature(int64_list=tf.train.Int64List(value=mlm_labels))
-            features["nsp_labels"] = tf.train.Feature(int64_list=tf.train.Int64List(value=nsp_labels))
+            feature = collections.OrderedDict()
+            feature["input_ids"] = tf.train.Feature(int64_list=tf.train.Int64List(value=input_ids))
+            feature["attention_mask"] = tf.train.Feature(int64_list=tf.train.Int64List(value=attention_mask))
+            feature["token_type_ids"] = tf.train.Feature(int64_list=tf.train.Int64List(value=token_type_ids))
+            feature["mlm_labels"] = tf.train.Feature(int64_list=tf.train.Int64List(value=mlm_labels))
+            feature["nsp_labels"] = tf.train.Feature(int64_list=tf.train.Int64List(value=nsp_labels))
 
-            example = tf.train.Example(features=tf.train.Features(feature_dict=features))
+            example = tf.train.Example(features=tf.train.Features(feature=feature))
             serialized_example = example.SerializeToString()
 
             writers[writer_index].write(serialized_example)
@@ -359,9 +361,10 @@ def main(_argv):
 
     logging.info("*****Saving to file...*****")
     builder.save_data(FLAGS.output_files)
-    logging.info("*****Save completed.")
+    logging.info("*****Save completed.*****")
     logging.info(
-        "*****Total saved {} instance into {}, respectively.*****".format(len(builder.get_instances()), FLAGS.output_files)
+        "*****Total saved {} instance into {}, respectively.*****".format(len(builder.get_instances()),
+                                                                          FLAGS.output_files)
     )
 
 
