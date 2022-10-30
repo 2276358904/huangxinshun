@@ -194,7 +194,7 @@ class FBertDataBuilder(object):
                             random_document = documents[random_document_index]
                             random_start = self.random.randint(0, len(random_document) - 1)
                             for j in range(random_start, len(random_document)):
-                                tokens_b.append(random_document[j])
+                                tokens_b.extend(random_document[j])
                                 if len(tokens_b) >= target_b_length:
                                     break
                             num_unused_tokens = len(current_sequences) - len(tokens_a)
@@ -202,7 +202,7 @@ class FBertDataBuilder(object):
                         else:
                             is_random_next = False
                             for j in range(a_end, len(current_sequences)):
-                                tokens_b.append(current_sequences[j])
+                                tokens_b.extend(current_sequences[j])
 
                         self._truncate_sequence_pair(tokens_a, tokens_b)
 
