@@ -125,6 +125,9 @@ class FullTokenizer(object):
                 split_tokens.append(sub_token)
         return split_tokens
 
+    def convert_token_to_id(self, token):
+        return self.vocab[token]
+
     def convert_tokens_to_ids(self, tokens):
         """Converts a sequence of tokens (string) in a sequence of ids (int)."""
         return convert_by_vocab(self.vocab, tokens)

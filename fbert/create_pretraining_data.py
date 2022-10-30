@@ -99,6 +99,7 @@ class FBertDataBuilder(object):
         masked_words = []
         masked_word_positions = []
         output_tokens = list(tokens)
+        vocab_words = list(self.tokenizer.vocab.keys())
         for index_set in indexes:
             if len(masked_words) >= num_masked_words:
                 break
@@ -116,7 +117,7 @@ class FBertDataBuilder(object):
                         masked_token = tokens[index]
                     # 10% of the time, replace with random word.
                     else:
-                        masked_token = self.random.randint(0, len(self.tokenizer.vocab) - 1)
+                        masked_token = vocab_words[self.random.randint(0, len(self.tokenizer.vocab) - 1)]
                 output_tokens[index] = masked_token
                 masked_words.append(masked_token)
                 masked_word_positions.append(index)
@@ -127,7 +128,7 @@ class FBertDataBuilder(object):
         mlm_labels = [-100] * (len(tokens))
 
         for i in range(len(masked_word_positions)):
-            mlm_labels[masked_word_positions[i]] = masked_words[i]
+            mlm_labels[masked_word_positions[i]] = self.tokenizer.convert_token_to_id(masked_words[i])
 
         nsp_labels = []
         if is_random_next:
@@ -182,7 +183,7 @@ class FBertDataBuilder(object):
                         tokens_b = []
                         if len(current_tokens) == 1 or self.random.random() < 0.5:
                             is_random_next = True
-                            target_seq_length_b = target_seq_length - len(tokens_a)
+                            target_b_length = target_seq_length - len(tokens_a)
                             random_document_index = 0
                             for _ in range(10):
                                 random_document_index = self.random.randint(0, len(documents) - 1)
@@ -190,8 +191,10 @@ class FBertDataBuilder(object):
                                     break
                             random_document = documents[random_document_index]
                             random_start = self.random.randint(0, len(random_document) - 1)
-                            for j in range(random_start, random_start + target_seq_length_b):
+                            for j in range(random_start, len(random_document)):
                                 tokens_b.append(random_document[j])
+                                if len(tokens_b) >= target_b_length:
+                                    break
                             num_unused_tokens = len(current_tokens) - len(tokens_a)
                             i -= num_unused_tokens
                         else:
