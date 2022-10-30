@@ -197,8 +197,8 @@ class FBertDataBuilder(object):
                                 tokens_b.extend(random_document[j])
                                 if len(tokens_b) >= target_b_length:
                                     break
-                            num_unused_tokens = len(current_sequences) - len(tokens_a)
-                            i -= num_unused_tokens
+                            num_unused_sequences = len(current_sequences) - a_end
+                            i -= num_unused_sequences
                         else:
                             is_random_next = False
                             for j in range(a_end, len(current_sequences)):
@@ -238,7 +238,8 @@ class FBertDataBuilder(object):
                             nsp_labels=nsp_labels
                         )
                         instances.append(instance)
-                    current_tokens = []
+                    current_sequences = []
+                    current_length = 0
         return instances
 
     def load_data(self, input_files: str, shuffle=True):
