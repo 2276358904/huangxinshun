@@ -16,7 +16,6 @@ from tokenization import FullTokenizer
 from tokenization import convert_to_unicode
 from modeling_configs import FBertConfig
 
-
 # Defines the global variables.
 FLAGS = flags.FLAGS
 
@@ -167,14 +166,15 @@ class FBertDataBuilder(object):
             current_sequences = []
             current_length = 0
             i = 0
-            while i < len(documents):
+            while i < len(document):
                 current_sequence = document[i]
                 current_sequences.append(current_sequence)
                 current_length += len(current_sequence)
                 if i == len(document) - 1 or current_length >= target_seq_length:
-                    if current_sequences:  # equal to 'if current_tokens != []'.
+                    if current_sequences:  # equal to 'if current_sequences != []'.
                         # Sequence A.
-                        # The variable `a_end` is how many tokens from `current_chunk` go into the 'A' (first) sentence.
+                        # The variable `a_end` is how many tokens from `current_sequences` go into the 'A' (first)
+                        # sentence.
                         a_end = 1
                         if len(current_sequences) >= 2:
                             a_end = self.random.randint(1, len(current_sequences) - 1)
@@ -249,22 +249,21 @@ class FBertDataBuilder(object):
         input_files = input_files.split(",")
 
         # ***create the documents***
-        documents = []
+        documents = [[]]
 
         for input_file in input_files:
             with tf.io.gfile.GFile(input_file, "r") as reader:
                 while True:
-                    if len(documents) == 0:
-                        documents.append([])
                     text = convert_to_unicode(reader.readline())
                     # There, one document matches counterpart in documents(list).
                     if not text:
-                        documents.append([])
                         break
                     text = text.strip()
                     # If exists the blank line, ignores it. we just take the contents of non-blank line.
-                    if text:
-                        tokens = self.tokenizer.tokenize(text)
+                    tokens = self.tokenizer.tokenize(text)
+                    if not text:
+                        documents.append([])
+                    else:
                         documents[-1].append(tokens)
 
         # Removes the blank document.
@@ -286,7 +285,7 @@ class FBertDataBuilder(object):
 
         if shuffle:
             self.random.shuffle(instances)
-
+        print(len(instances))
         self.instances = instances
 
     def save_data(self, output_files):
@@ -334,7 +333,7 @@ class FBertDataBuilder(object):
 
 def main(_argv):
     # Initializes configuration.
-    config = FBertConfig()
+    config = FBertConfig(max_seq_length=128)
 
     # Creates data builder.
     builder = FBertDataBuilder(
