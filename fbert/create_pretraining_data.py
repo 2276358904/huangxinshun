@@ -166,7 +166,8 @@ class FBertDataBuilder(object):
 
             current_sequences = []
             current_length = 0
-            for i in range(len(document)):
+            i = 0
+            while i < len(documents):
                 current_sequence = document[i]
                 current_sequences.append(current_sequence)
                 current_length += len(current_sequence)
