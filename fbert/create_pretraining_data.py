@@ -87,7 +87,7 @@ class FBertDataBuilder(object):
         for i, token in enumerate(tokens):
             if token == "[CLS]" or token == "[SEP]":
                 continue
-            if self.do_whole_word_mask and len(indexes) >= 1 and token.startwith("##"):
+            if self.do_whole_word_mask and len(indexes) >= 1 and token.startswith("##"):
                 indexes[-1].append(i)
             else:
                 indexes.append([i])
@@ -116,7 +116,7 @@ class FBertDataBuilder(object):
                         masked_token = tokens[index]
                     # 10% of the time, replace with random word.
                     else:
-                        masked_token = self.random.randint(0, self.tokenizer.vocab - 1)
+                        masked_token = self.random.randint(0, len(self.tokenizer.vocab) - 1)
                 output_tokens[index] = masked_token
                 masked_words.append(masked_token)
                 masked_word_positions.append(index)
@@ -141,7 +141,7 @@ class FBertDataBuilder(object):
 
         while True:
             total_length = len(tokens_a) + len(tokens_b)
-            if total_length >= max_num_tokens:
+            if total_length <= max_num_tokens:
                 break
             trunc_tokens = tokens_a if len(tokens_a) > len(tokens_b) else tokens_b
             assert len(trunc_tokens) >= 1
@@ -176,7 +176,7 @@ class FBertDataBuilder(object):
                             a_end = self.random.randint(1, len(current_tokens) - 1)
                         tokens_a = []
                         for j in range(a_end):
-                            tokens_a.extend(current_tokens[j])
+                            tokens_a.append(current_tokens[j])
 
                         # Sequence B.
                         tokens_b = []
@@ -191,13 +191,13 @@ class FBertDataBuilder(object):
                             random_document = documents[random_document_index]
                             random_start = self.random.randint(0, len(random_document) - 1)
                             for j in range(random_start, random_start + target_seq_length_b):
-                                tokens_b.extend(random_document[j])
+                                tokens_b.append(random_document[j])
                             num_unused_tokens = len(current_tokens) - len(tokens_a)
                             i -= num_unused_tokens
                         else:
                             is_random_next = False
                             for j in range(a_end, len(current_tokens)):
-                                tokens_b.extend(current_tokens[j])
+                                tokens_b.append(current_tokens[j])
 
                         self._truncate_sequence_pair(tokens_a, tokens_b)
 
@@ -279,7 +279,7 @@ class FBertDataBuilder(object):
         if shuffle:
             self.random.shuffle(instances)
 
-        self.instances.extend(instances)
+        self.instances = instances
 
     def save_data(self, output_files):
         output_files = output_files.split(",")
@@ -288,12 +288,12 @@ class FBertDataBuilder(object):
         for output_file in output_files:
             writers.append(tf.io.TFRecordWriter(output_file))
 
-        for index, instance in self.instances:
-            input_ids = instance["input_ids"]
-            attention_mask = instance["attention_mask"]
-            token_type_ids = instance["token_type_ids"]
-            mlm_labels = instance["mlm_labels"]
-            nsp_labels = instance["nsp_labels"]
+        for index, instance in enumerate(self.instances):
+            input_ids = instance.input_ids
+            attention_mask = instance.attention_mask
+            token_type_ids = instance.token_type_ids
+            mlm_labels = instance.mlm_labels
+            nsp_labels = instance.nsp_labels
 
             while len(input_ids) < self.max_seq_length:
                 input_ids.append(0)
@@ -348,7 +348,7 @@ def main(_argv):
     instances = builder.get_instances()
     for i in range(20):
         logging.info(
-            "input_ids: {}, attention_mask: {}, token_type_ids: {}, mlm_labels: {}, nsp_labels: {}".format(
+            "input_ids: {} \n attention_mask: {} \n token_type_ids: {} \n mlm_labels: {} \n nsp_labels: {}".format(
                 instances[i].input_ids, instances[i].attention_mask, instances[i].token_type_ids,
                 instances[i].mlm_labels, instances[i].nsp_labels
             )
@@ -365,5 +365,5 @@ def main(_argv):
 if __name__ == "__main__":
     flags.mark_flag_as_required("input_files")
     flags.mark_flag_as_required("output_files")
-    flags.mark_flag_as_required("vocab_files")
+    flags.mark_flag_as_required("vocab_file")
     app.run(main)
