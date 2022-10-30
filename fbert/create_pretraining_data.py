@@ -10,6 +10,7 @@ import tensorflow as tf
 
 from dataclasses import dataclass
 from typing import List
+from tqdm import tqdm
 from absl import flags, app
 
 from tokenization import FullTokenizer
@@ -276,7 +277,7 @@ class FBertDataBuilder(object):
         instances = []
 
         if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
-            for _ in range(self.dup_times):
+            for _ in tqdm(range(self.dup_times)):
                 instances.extend(self._create_data_from_documents(documents))
         elif not self.is_dynamic_mask:
             instances.extend(self._create_data_from_documents(documents))
