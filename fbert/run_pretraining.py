@@ -244,7 +244,7 @@ class FBertPretrainingTrainer(object):
                 epoch_start_time = time.time()
                 for step, iterator in enumerate(train_dataset):
                     self.train_step_for_tpu(iterator)
-                    if step % 1000 == 0:
+                    if step % 10 == 0:
                         logging.info(
                             "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
