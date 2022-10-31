@@ -502,8 +502,6 @@ class FBertForPreTraining(tf.keras.Model):
             input_ids,
             attention_mask=None,
             token_type_ids=None,
-            mlm_labels=None,
-            nsp_labels=None,
             training=False
     ):
         outputs = self.fbert(

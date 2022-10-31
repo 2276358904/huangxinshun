@@ -115,7 +115,7 @@ def compute_pretraining_loss(labels, logits):
     )
     # mlm loss
     mlm_logits, mlm_labels = logits[0], labels[0]
-    unmasked_loss = loss_fn(tf.nn.relu(mlm_logits), mlm_labels)
+    unmasked_loss = loss_fn(tf.nn.relu(mlm_labels), mlm_logits)
     loss_mask = tf.cast(mlm_labels != -100, dtype=unmasked_loss.dtype)
     masked_loss = unmasked_loss * loss_mask
     mlm_loss = tf.reduce_sum(masked_loss) / tf.reduce_sum(loss_mask)
@@ -123,5 +123,39 @@ def compute_pretraining_loss(labels, logits):
     nsp_logits, nsp_labels = logits[1], labels[1]
     nsp_loss = loss_fn(nsp_labels, nsp_logits)
     nsp_loss = tf.reduce_mean(nsp_loss)
+
     total_loss = nsp_loss + mlm_loss
     return total_loss
+
+
+class FBertPretrainingAccuracy(tf.keras.metrics.Metric):
+    def __init__(self, name="accuracy", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.accuracy = self.add_weight(name="accuracy", initializer="zero")
+
+    @staticmethod
+    def compute_pretraining_accuracy(labels, logits):
+        # mlm accuracy
+        mlm_logits, mlm_labels = logits[0], labels[0]
+        unmasked_accuracy = tf.keras.metrics.sparse_categorical_accuracy(tf.nn.relu(mlm_labels), mlm_logits)
+        accuracy_mask = tf.cast(mlm_labels != -100, unmasked_accuracy.dtype)
+        masked_accuracy = unmasked_accuracy * accuracy_mask
+        mlm_accuracy = tf.reduce_sum(masked_accuracy) / tf.reduce_sum(accuracy_mask)
+        # nsp accuracy
+        nsp_logits, nsp_labels = logits[1], labels[1]
+        accuracy_fn = tf.keras.metrics.SparseCategoricalAccuracy()
+        nsp_accuracy = accuracy_fn(nsp_labels, nsp_logits)
+
+        total_accuracy = (mlm_accuracy + nsp_accuracy) / 2
+        return total_accuracy
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        self.accuracy.assign(self.compute_pretraining_accuracy(y_true, y_pred))
+
+    def result(self):
+        return self.accuracy
+
+    def reset_states(self):
+        # The state of the metric will be reset at the start of each epoch.
+        self.accuracy.assign(0.0)
+
