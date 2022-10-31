@@ -24,7 +24,7 @@ flags.DEFINE_string("checkpoint_dir", None, "The directory of checkpoint of mode
 flags.DEFINE_string("config_file", None, "The configuration file of model.If none, will use the default configuration.")
 
 # Defines the number of parallel processed files.
-flags.DEFINE_integer("num_proc", 4, "The number of processed cpus.")
+flags.DEFINE_integer("num_proc", 2, "The number of processed cpus.")
 
 # Defines the optimizer hyperparameter
 flags.DEFINE_float("init_lr", 1e-4, "The learning rate of optimizer.")
@@ -105,11 +105,10 @@ class FBertPretrainingTrainer(object):
             dataset = dataset.repeat(2)
             dataset = dataset.shuffle(len(input_files))
 
-            cycle_length = min(self.num_proc, len(input_files))
             dataset = dataset.interleave(
                 lambda data: tf.data.TFRecordDataset(data),
-                cycle_length=cycle_length,
-                num_parallel_calls=self.num_proc
+                cycle_length=min(self.num_proc, len(input_files)),
+                num_parallel_calls=min(self.num_proc, len(input_files))
             )
             dataset = dataset.shuffle(100)
         else:
