@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import logging
 import time
+import os
 
 import tensorflow as tf
 
@@ -144,6 +145,8 @@ class FBertPretrainingTrainer(object):
 
     @staticmethod
     def _init_checkpoint_and_manager(model, optimizer, checkpoint_dir):
+        if not os.path.exists(checkpoint_dir):
+            os.mkdir(checkpoint_dir)
         checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
         checkpoint_manager = tf.train.CheckpointManager(
             checkpoint=checkpoint,
@@ -308,7 +311,10 @@ class FBertPretrainingTrainer(object):
 
 
 def main(_argv):
-    config = FBertConfig.from_json(FLAGS.config_file)
+    if FLAGS.config_file:
+        config = FBertConfig.from_json(FLAGS.config_file)
+    else:
+        config = FBertConfig()
     trainer = FBertPretrainingTrainer(
         config=config,
         is_training=FLAGS.is_training,
