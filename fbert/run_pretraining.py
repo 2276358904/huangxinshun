@@ -37,11 +37,13 @@ flags.DEFINE_integer("train_batch_size", 16, "Batch size of training dataset.")
 flags.DEFINE_integer("eval_batch_size", 8, "Batch size of evaluation dataset.")
 flags.DEFINE_bool("use_tpu", True, "Whether to use tpu(true) or cpu/gpu(false) train the model.")
 flags.DEFINE_bool("is_training", True, "Whether is training or evaluating the model.")
+flags.DEFINE_integer("num_print_steps", 10, "The steps in which print any train details, like loss, accuracy.")
+flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 
 
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
-                 input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu):
+                 input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, num_print_steps, epochs):
         self.config = config
         self.is_training = is_training
         # model configuration hyperparameter
@@ -56,6 +58,9 @@ class FBertPretrainingTrainer(object):
         self.num_warmup_steps = num_warmup_steps
         self.weight_decay_rate = weight_decay_rate
 
+        self.num_print_steps = num_print_steps
+        self.epochs = epochs
+        # data files
         self.input_files = input_files
         # batch size
         self.train_batch_size = train_batch_size
@@ -185,7 +190,7 @@ class FBertPretrainingTrainer(object):
         self.strategy.run(step_fn, args=(next(iterator),))
 
     @tf.function
-    def train_step_for_cpu(self, inputs):
+    def train_step(self, inputs):
         if len(inputs) == 5:
             input_ids = inputs["input_ids"]
             attention_mask = inputs["attention_mask"]
@@ -209,7 +214,7 @@ class FBertPretrainingTrainer(object):
         self.metrics[0].update_state(loss)
         self.metrics[1].update_state(labels, logits)
 
-    def do_training(self, epochs):
+    def do_training(self):
         if self.use_tpu:
             self.strategy = self._init_tpu_strategy()
 
@@ -239,11 +244,11 @@ class FBertPretrainingTrainer(object):
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
-            for epoch in range(epochs):
+            for epoch in range(self.epochs):
                 epoch_start_time = time.time()
                 for step, iterator in enumerate(train_dataset):
                     self.train_step_for_tpu(iterator)
-                    if step % 10 == 0:
+                    if step % self.num_print_steps == 0:
                         logging.info(
                             "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
@@ -287,11 +292,11 @@ class FBertPretrainingTrainer(object):
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
-            for epoch in range(epochs):
+            for epoch in range(self.epochs):
                 epoch_start_time = time.time()
                 for step, inputs in enumerate(train_dataset):
-                    self.train_step_for_cpu(inputs)
-                    if step % 1000 == 0:
+                    self.train_step(inputs)
+                    if step % self.num_print_steps == 0:
                         logging.info(
                             "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
@@ -313,7 +318,7 @@ class FBertPretrainingTrainer(object):
                 self.metrics[0].reset_states()
                 self.metrics[1].reset_states()
 
-    def do_evaluating(self, epochs):
+    def do_evaluating(self):
         pass
 
 
@@ -334,12 +339,14 @@ def main(_argv):
         train_batch_size=FLAGS.train_batch_size,
         eval_batch_size=FLAGS.eval_batch_size,
         checkpoint_dir=FLAGS.checkpoint_dir,
-        use_tpu=FLAGS.use_tpu
+        use_tpu=FLAGS.use_tpu,
+        num_print_steps=FLAGS.num_print_steps,
+        epochs=FLAGS.epochs
     )
     if FLAGS.is_training:
-        trainer.do_training(4)
+        trainer.do_training()
     else:
-        trainer.do_evaluating(4)
+        trainer.do_evaluating()
 
 
 if __name__ == "__main__":
