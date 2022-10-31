@@ -178,6 +178,27 @@ class FBertPretrainingTrainer(object):
 
         self.strategy.run(step_fn, args=(next(iterator),))
 
+    @tf.function
+    def train_step_for_cpu(self, inputs):
+        if len(inputs) == 5:
+            input_ids, attention_mask, token_type_ids, mlm_labels, nsp_labels = inputs
+        else:
+            raise ValueError("The input must be a tuple of length 5.")
+        labels = (mlm_labels, nsp_labels)
+        with tf.GradientTape() as tape:
+            logits = self.model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                token_type_ids=token_type_ids,
+                training=True
+            )
+            loss = compute_pretraining_loss(labels, logits)
+        grads = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+
+        self.metrics[0].update_state(loss)
+        self.metrics[1].update_state(labels, logits)
+
     def do_training(self, epochs):
         if self.use_tpu:
             self.strategy = self._init_tpu_strategy()
@@ -258,8 +279,8 @@ class FBertPretrainingTrainer(object):
             logging.info("Starting training the model.")
             for epoch in epochs:
                 epoch_start_time = time.time()
-                for step, iterator in enumerate(train_dataset):
-                    self.train_step_for_tpu(iterator)
+                for step, inputs in enumerate(train_dataset):
+                    self.train_step_for_cpu(inputs)
                     if step % 1000 == 0:
                         logging.info(
                             "epoch: {}, step: {}, loss: {.2f}, accuracy: {.2f}.".format(
