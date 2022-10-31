@@ -14,19 +14,17 @@ class FBertConfig(object):
             vocab_size=30522,
             type_vocab_size=2,
             embed_size=128,
-            hidden_size=512,
-            intermediate_size=4096,
+            hidden_size=768,
             num_hidden_layers=12,
             num_hidden_groups=1,
             num_inner_layers=1,
-            num_heads=4,
+            num_heads=12,
             hidden_act="gelu",
-            intermediate_act="gelu",
             hidden_dropout_rate=0.1,
             attention_probs_dropout_rate=0.1,
             layer_norm_epsilon=1e-12,
-            max_seq_length=4096,
-            initializer_range=0.1,
+            max_seq_length=512,
+            initializer_range=0.02,
             use_fft=False
     ):
         """
@@ -43,8 +41,6 @@ class FBertConfig(object):
                 Dimensionality of embedding layer.
             hidden_size:
                 Dimensionality of inner encoder layer.
-            intermediate_size:
-                The dimensionality of "intermediate"(often name feed-forward) layer.
             num_hidden_layers:
                 The number of hidden layers in a group.
             num_hidden_groups:
@@ -56,9 +52,6 @@ class FBertConfig(object):
                 The number of attention heads for each attention layer.
             hidden_act:
                 The non-linear activation function(function or string) in the encoder.
-            intermediate_act:
-                The non-linear activation function used in "intermediate"(often named
-                feed-forward) layer.
             hidden_dropout_rate:
                 The dropout probability for all fully connected layers in the embeddings,
                 encoder.
@@ -79,13 +72,11 @@ class FBertConfig(object):
         self.type_vocab_size = type_vocab_size
         self.embed_size = embed_size
         self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_hidden_groups = num_hidden_groups
         self.num_inner_layers = num_inner_layers
         self.num_heads = num_heads
         self.hidden_act = hidden_act
-        self.intermediate_act = intermediate_act
         self.hidden_dropout_rate = hidden_dropout_rate
         self.attention_probs_dropout_rate = attention_probs_dropout_rate
         self.layer_norm_epsilon = layer_norm_epsilon

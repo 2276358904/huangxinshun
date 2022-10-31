@@ -13,8 +13,7 @@ from modeling_utils import (
     get_initializer,
     get_activation,
     stable_softmax,
-    get_sinusoidal_position_embeddings,
-    compute_pretraining_loss
+    get_sinusoidal_position_embeddings
 )
 
 
@@ -339,6 +338,7 @@ class FBertEncoder(tf.keras.layers.Layer):
         self.dense = tf.keras.layers.Dense(
             config.hidden_size,
             kernel_initializer=get_initializer(config.initializer_range),
+            activation=get_activation(config.hidden_act),
             name="dense"
         )
 
@@ -419,7 +419,6 @@ class FBertMainLayer(tf.keras.layers.Layer):
         attention_mask = tf.subtract(one_const, attention_mask)
         # Broadcast to [input_shape[0], 1, 1, input_shape[1]].
         attention_mask = tf.reshape(attention_mask, [input_shape[0], 1, 1, input_shape[1]])
-        attention_mask = tf.cast(attention_mask, tf.float32)
 
         embedding_outputs = self.embedding(
             input_ids,
@@ -515,6 +514,5 @@ class FBertForPreTraining(tf.keras.Model):
 
         mlm_predictions = self.mlm(sequence_outputs)
         nsp_predictions = self.nsp(pooling_outputs)
-        print(tf.shape(nsp_predictions))
         return mlm_predictions, nsp_predictions
 

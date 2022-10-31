@@ -24,17 +24,17 @@ flags.DEFINE_string("checkpoint_dir", None, "The directory of checkpoint of mode
 flags.DEFINE_string("config_file", None, "The configuration file of model.If none, will use the default configuration.")
 
 # Defines the number of parallel processed files.
-flags.DEFINE_integer("num_proc", 2, "The number of processed cpus.")
+flags.DEFINE_integer("num_proc", 4, "The number of processed cpus.")
 
 # Defines the optimizer hyperparameter
-flags.DEFINE_float("init_lr", 5e-5, "The learning rate of optimizer.")
+flags.DEFINE_float("init_lr", 1e-4, "The learning rate of optimizer.")
 flags.DEFINE_integer("num_train_steps", 100000, "Number of training step.")
 flags.DEFINE_integer("num_warmup_steps", 10000, "Number of warmup step.")
 flags.DEFINE_float("weight_decay_rate", 0.01, "")
 
 # Defines the training and evaluation hyperparameter.
-flags.DEFINE_integer("train_batch_size", 64, "Batch size of training dataset.")
-flags.DEFINE_integer("eval_batch_size", 32, "Batch size of evaluation dataset.")
+flags.DEFINE_integer("train_batch_size", 16, "Batch size of training dataset.")
+flags.DEFINE_integer("eval_batch_size", 8, "Batch size of evaluation dataset.")
 flags.DEFINE_bool("use_tpu", True, "Whether to use tpu(true) or cpu/gpu(false) train the model.")
 flags.DEFINE_bool("is_training", True, "Whether is training or evaluating the model.")
 
@@ -135,7 +135,7 @@ class FBertPretrainingTrainer(object):
     @staticmethod
     def _init_model_and_optimizer(config, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate):
         model = FBertForPreTraining(config)
-        optimizer = create_optimizer(
+        optimizer, lr_schedule = create_optimizer(
             init_lr=init_lr,
             num_train_steps=num_train_steps,
             num_warmup_steps=num_warmup_steps,
@@ -246,13 +246,13 @@ class FBertPretrainingTrainer(object):
                     self.train_step_for_tpu(iterator)
                     if step % 1000 == 0:
                         logging.info(
-                            "epoch: {}, step: {}, loss: {.2f}, accuracy: {.2f}.".format(
+                            "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
                             )
                         )
                 epoch_end_time = time.time()
                 logging.info(
-                    "epoch: {}, loss: {.2f}, accuracy: {.2f}.".format(
+                    "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                         epoch, self.metrics[0].result(), self.metrics[1].result()
                     )
                 )
@@ -294,13 +294,13 @@ class FBertPretrainingTrainer(object):
                     self.train_step_for_cpu(inputs)
                     if step % 1000 == 0:
                         logging.info(
-                            "epoch: {}, step: {}, loss: {.2f}, accuracy: {.2f}.".format(
+                            "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
                             )
                         )
                 epoch_end_time = time.time()
                 logging.info(
-                    "epoch: {}, loss: {.2f}, accuracy: {.2f}.".format(
+                    "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
                         epoch, self.metrics[0].result(), self.metrics[1].result()
                     )
                 )

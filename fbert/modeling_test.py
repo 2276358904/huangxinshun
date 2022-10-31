@@ -52,7 +52,7 @@ class FBertModelTest(tf.test.TestCase):
     def test_attention_layer(self):
         config = FBertConfig()
         attention_layer = FBertAttention(config)
-        random_inputs = tf.random.normal([64, 128, 512], 0.0, 0.2)
+        random_inputs = tf.random.normal([64, 128, config.hidden_size], 0.0, 0.2)
         input_shape = tf.shape(random_inputs)
         outputs = attention_layer(random_inputs)
         self.assertAllEqual(tf.shape(outputs), input_shape)

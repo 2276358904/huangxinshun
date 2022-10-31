@@ -133,9 +133,8 @@ class FBertPretrainingAccuracy(tf.keras.metrics.Metric):
         super().__init__(name=name, **kwargs)
         self.accuracy = self.add_weight(name="accuracy", initializer="zero")
 
-    @staticmethod
-    def compute_pretraining_accuracy(labels, logits):
-        # mlm accuracy
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        labels, logits = y_true, y_pred
         mlm_logits, mlm_labels = logits[0], labels[0]
         unmasked_accuracy = tf.keras.metrics.sparse_categorical_accuracy(tf.nn.relu(mlm_labels), mlm_logits)
         accuracy_mask = tf.cast(mlm_labels != -100, unmasked_accuracy.dtype)
@@ -143,14 +142,11 @@ class FBertPretrainingAccuracy(tf.keras.metrics.Metric):
         mlm_accuracy = tf.reduce_sum(masked_accuracy) / tf.reduce_sum(accuracy_mask)
         # nsp accuracy
         nsp_logits, nsp_labels = logits[1], labels[1]
-        accuracy_fn = tf.keras.metrics.SparseCategoricalAccuracy()
-        nsp_accuracy = accuracy_fn(nsp_labels, nsp_logits)
+        nsp_accuracy = tf.keras.metrics.sparse_categorical_accuracy(nsp_labels, nsp_logits)
+        nsp_accuracy = tf.reduce_mean(nsp_accuracy)
 
         total_accuracy = (mlm_accuracy + nsp_accuracy) / 2
-        return total_accuracy
-
-    def update_state(self, y_true, y_pred, sample_weight=None):
-        self.accuracy.assign(self.compute_pretraining_accuracy(y_true, y_pred))
+        self.accuracy.assign(total_accuracy)
 
     def result(self):
         return self.accuracy
