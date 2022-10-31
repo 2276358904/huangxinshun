@@ -441,10 +441,10 @@ class FBertMLMHead(tf.keras.layers.Layer):
         super().__init__(**kwargs)
 
         self.vocab_size = config.vocab_size
-        self.hidden_size = config.hidden_size
+        self.embed_size = config.embed_size
 
         self.dense = tf.keras.layers.Dense(
-            config.hidden_size,
+            config.embed_size,
             kernel_initializer=get_initializer(config.initializer_range),
             name="dense"
         )
@@ -466,7 +466,8 @@ class FBertMLMHead(tf.keras.layers.Layer):
         hidden_states = self.layer_norm(hidden_states)
 
         seq_length = shape_list(tensor=hidden_states)[1]
-        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, self.hidden_size])
+        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, self.embed_size])
+
         hidden_states = tf.matmul(a=hidden_states, b=self.embedding.weight, transpose_b=True)
         hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, seq_length, self.vocab_size])
         hidden_states = tf.nn.bias_add(value=hidden_states, bias=self.bias)
@@ -514,6 +515,6 @@ class FBertForPreTraining(tf.keras.Model):
 
         mlm_predictions = self.mlm(sequence_outputs)
         nsp_predictions = self.nsp(pooling_outputs)
-
+        print(tf.shape(nsp_predictions))
         return mlm_predictions, nsp_predictions
 

@@ -159,7 +159,11 @@ class FBertPretrainingTrainer(object):
     def train_step_for_tpu(self, iterator):
         def step_fn(inputs):
             if len(inputs) == 5:
-                input_ids, attention_mask, token_type_ids, mlm_labels, nsp_labels = inputs
+                input_ids = inputs["input_ids"]
+                attention_mask = inputs["attention_mask"]
+                token_type_ids = inputs["token_type_ids"]
+                mlm_labels = inputs["mlm_labels"]
+                nsp_labels = inputs["nsp_labels"]
             else:
                 raise ValueError("The input must be a tuple of length 5.")
             labels = (mlm_labels, nsp_labels)
@@ -184,7 +188,11 @@ class FBertPretrainingTrainer(object):
     @tf.function
     def train_step_for_cpu(self, inputs):
         if len(inputs) == 5:
-            input_ids, attention_mask, token_type_ids, mlm_labels, nsp_labels = inputs
+            input_ids = inputs["input_ids"]
+            attention_mask = inputs["attention_mask"]
+            token_type_ids = inputs["token_type_ids"]
+            mlm_labels = inputs["mlm_labels"]
+            nsp_labels = inputs["nsp_labels"]
         else:
             raise ValueError("The input must be a tuple of length 5.")
         labels = (mlm_labels, nsp_labels)
@@ -232,7 +240,7 @@ class FBertPretrainingTrainer(object):
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
-            for epoch in epochs:
+            for epoch in range(epochs):
                 epoch_start_time = time.time()
                 for step, iterator in enumerate(train_dataset):
                     self.train_step_for_tpu(iterator)
@@ -280,7 +288,7 @@ class FBertPretrainingTrainer(object):
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
-            for epoch in epochs:
+            for epoch in range(epochs):
                 epoch_start_time = time.time()
                 for step, inputs in enumerate(train_dataset):
                     self.train_step_for_cpu(inputs)
