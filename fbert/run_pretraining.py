@@ -34,8 +34,8 @@ flags.DEFINE_float("weight_decay_rate", 0.01, "")
 # Defines the training and evaluation hyperparameter.
 flags.DEFINE_integer("train_batch_size", 64, "Batch size of training dataset.")
 flags.DEFINE_integer("eval_batch_size", 32, "Batch size of evaluation dataset.")
-flags.DEFINE_bool("use_tpu", True, "Whether to use tpu train the model.")
-flags.DEFINE_bool("is_training", True, "Whether is training the model.")
+flags.DEFINE_bool("use_tpu", True, "Whether to use tpu(true) or cpu/gpu(false) train the model.")
+flags.DEFINE_bool("is_training", True, "Whether is training or evaluating the model.")
 
 
 class FBertPretrainingTrainer(object):
@@ -196,13 +196,18 @@ class FBertPretrainingTrainer(object):
             )
             if self.checkpoint_manager.latest_checkpoint:
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
-                logging.info("Restore model and optimizer completely from checkpoint manager.")
-            per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
+                logging.info("Restoring model and optimizer completely from checkpoint manager.")
+            else:
+                logging.info("Creating a new model and optimizer completely.")
 
+            logging.info("Start loading the dataset.")
+            per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
             train_dataset = self.strategy.distribute_datasets_from_function(
                 self.load_dataset(per_replica_batch_size, is_training=True)
             )
+            logging.info("Loaded dataset completely.")
 
+            logging.info("Starting training the model.")
             for epoch in epochs:
                 epoch_start_time = time.time()
                 for step, iterator in enumerate(train_dataset):
@@ -224,12 +229,58 @@ class FBertPretrainingTrainer(object):
                 )
                 self.checkpoint_manager.save()
                 logging.info(
-                    "save model and optimizer at epoch {}.".format(epoch)
+                    "saved model and optimizer at epoch {}.".format(epoch)
                 )
                 self.metrics[0].reset_states()
                 self.metrics[1].reset_states()
         else:
-            pass
+            self.model, self.optimizer = self._init_model_and_optimizer(
+                self.config,
+                self.init_lr,
+                self.num_train_steps,
+                self.num_warmup_steps,
+                self.weight_decay_rate
+            )
+            self.metrics.extend([tf.keras.metrics.Mean(), FBertPretrainingAccuracy()])
+            self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
+                self.model, self.optimizer, self.checkpoint_dir
+            )
+            if self.checkpoint_manager.latest_checkpoint:
+                self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
+                logging.info("Restoring model and optimizer completely from checkpoint manager.")
+            else:
+                logging.info("Creating a new model and optimizer completely.")
+
+            logging.info("Start loading the dataset.")
+            train_dataset = self.load_dataset(self.train_batch_size, is_training=True)
+            logging.info("Loaded dataset completely.")
+
+            logging.info("Starting training the model.")
+            for epoch in epochs:
+                epoch_start_time = time.time()
+                for step, iterator in enumerate(train_dataset):
+                    self.train_step_for_tpu(iterator)
+                    if step % 1000 == 0:
+                        logging.info(
+                            "epoch: {}, step: {}, loss: {.2f}, accuracy: {.2f}.".format(
+                                epoch, step, self.metrics[0].result(), self.metrics[1].result()
+                            )
+                        )
+                epoch_end_time = time.time()
+                logging.info(
+                    "epoch: {}, loss: {.2f}, accuracy: {.2f}.".format(
+                        epoch, self.metrics[0].result(), self.metrics[1].result()
+                    )
+                )
+                logging.info(
+                    "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
+                )
+                self.checkpoint_manager.save()
+                logging.info(
+                    "saved model and optimizer at epoch {}.".format(epoch)
+                )
+                self.metrics[0].reset_states()
+                self.metrics[1].reset_states()
 
     def do_evaluating(self, epochs):
         pass
