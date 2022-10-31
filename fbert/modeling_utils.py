@@ -128,6 +128,24 @@ def compute_pretraining_loss(labels, logits):
     return total_loss
 
 
+def compute_pretraining_loss_for_tpu(labels, logits):
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True, reduction=tf.keras.losses.Reduction.NONE
+    )
+    # mlm loss
+    mlm_logits, mlm_labels = logits[0], labels[0]
+    unmasked_loss = loss_fn(tf.nn.relu(mlm_labels), mlm_logits)
+    loss_mask = tf.cast(mlm_labels != -100, dtype=unmasked_loss.dtype)
+    masked_loss = unmasked_loss * loss_mask
+    mlm_loss = tf.reduce_sum(masked_loss, 1) / tf.reduce_sum(loss_mask, 1)
+    # nsp loss
+    nsp_logits, nsp_labels = logits[1], labels[1]
+    nsp_loss = loss_fn(nsp_labels, nsp_logits)
+
+    total_loss = mlm_loss + nsp_loss
+    return total_loss
+
+
 class FBertPretrainingAccuracy(tf.keras.metrics.Metric):
     def __init__(self, name="accuracy", **kwargs):
         super().__init__(name=name, **kwargs)

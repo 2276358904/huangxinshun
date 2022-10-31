@@ -12,7 +12,7 @@ from absl import flags, app
 
 from modeling import FBertForPreTraining
 from modeling_configs import FBertConfig
-from modeling_utils import compute_pretraining_loss, FBertPretrainingAccuracy
+from modeling_utils import compute_pretraining_loss, compute_pretraining_loss_for_tpu, FBertPretrainingAccuracy
 from optimization import create_optimizer
 
 
@@ -179,7 +179,7 @@ class FBertPretrainingTrainer(object):
                     token_type_ids=token_type_ids,
                     training=True
                 )
-                loss = compute_pretraining_loss(labels, logits)
+                loss = compute_pretraining_loss_for_tpu(labels, logits)
                 loss = tf.nn.compute_average_loss(loss, global_batch_size=self.train_batch_size)
             grads = tape.gradient(loss, self.model.trainable_variables)
             self.optimizer.apply_gradients(list(zip(grads, self.model.trainable_variables)))
