@@ -10,7 +10,7 @@ import tensorflow as tf
 
 from fbert.modeling_utils import shape_list
 from modeling_configs import FBertConfig
-from modeling import FBertEmbedding, FBertAttention, FBertFourierTransform, FBertEncoder, FBertModel
+from modeling import FBertEmbedding, FBertAttention, FBertFourierTransform, FBertEncoder, FBertMainLayer
 
 
 class FBertModelTest(tf.test.TestCase):
@@ -73,14 +73,14 @@ class FBertModelTest(tf.test.TestCase):
         outputs = encoder(input_ids, attention_mask=attention_mask)
         self.assertAllEqual(shape_list(outputs), [input_shape[0], input_shape[1], config.hidden_size])
 
-    def test_model(self):
+    def test_main_layer(self):
         config = FBertConfig()
-        model = FBertModel(config)
+        model = FBertMainLayer(config)
         random_input_ids = np.random.randint(0, 30000, [64, 256])
         random_input_ids = tf.convert_to_tensor(random_input_ids)
         input_shape = shape_list(random_input_ids)
         outputs = model(random_input_ids)
-        self.assertAllEqual(shape_list(outputs), [input_shape[0], input_shape[1], config.hidden_size])
+        self.assertAllEqual(shape_list(outputs[0]), [input_shape[0], input_shape[1], config.hidden_size])
 
     @staticmethod
     def generate_dataset(train_batch_size=64, test_batch_size=32, mode="train"):

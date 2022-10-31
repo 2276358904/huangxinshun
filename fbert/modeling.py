@@ -9,7 +9,12 @@ import tensorflow as tf
 from scipy import linalg
 
 from modeling_utils import (
-    shape_list, get_initializer, get_activation, stable_softmax, get_sinusoidal_position_embeddings
+    shape_list,
+    get_initializer,
+    get_activation,
+    stable_softmax,
+    get_sinusoidal_position_embeddings,
+    compute_pretraining_loss
 )
 
 
@@ -23,7 +28,7 @@ class FBertEmbedding(tf.keras.layers.Layer):
         self.embed_size = config.embed_size
         self.initializer_range = config.initializer_range
 
-        self.word_embeddings = None
+        self.weight = None
         self.token_type_embeddings = None
 
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_rate, name="dropout")
@@ -31,7 +36,7 @@ class FBertEmbedding(tf.keras.layers.Layer):
 
     def build(self, input_shape):
         with tf.name_scope("word_embedding"):
-            self.word_embeddings = self.add_weight(
+            self.weight = self.add_weight(
                 name="embedding",
                 shape=[self.vocab_size, self.embed_size],
                 initializer=get_initializer(self.initializer_range)
@@ -61,7 +66,7 @@ class FBertEmbedding(tf.keras.layers.Layer):
             token_type_ids = tf.zeros([batch_size, seq_length])
         token_type_ids = tf.cast(token_type_ids, tf.int32)
 
-        word_embeddings = tf.gather(self.word_embeddings, input_ids)
+        word_embeddings = tf.gather(self.weight, input_ids)
         token_type_embeddings = tf.gather(self.token_type_embeddings, token_type_ids)
         final_embeddings = word_embeddings + token_type_embeddings
 
@@ -376,12 +381,19 @@ class FBertEncoder(tf.keras.layers.Layer):
         return group_outputs
 
 
-class FBertModel(tf.keras.layers.Layer):
+class FBertMainLayer(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
 
         self.embedding = FBertEmbedding(config, name="embedding")
         self.encoder = FBertEncoder(config, name="encoder")
+
+        self.pooling = tf.keras.layers.Dense(
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            activation=get_activation("tanh"),
+            name="pooling"
+        )
 
     def get_embedding(self):
         return self.embedding
@@ -420,4 +432,90 @@ class FBertModel(tf.keras.layers.Layer):
             attention_mask=attention_mask,
             training=training
         )
-        return encoder_outputs
+        pooling_output = self.pooling(encoder_outputs[:, 0])
+        return encoder_outputs, pooling_output
+
+
+class FBertMLMHead(tf.keras.layers.Layer):
+    def __init__(self, config, embedding: tf.keras.layers.Layer, **kwargs):
+        super().__init__(**kwargs)
+
+        self.vocab_size = config.vocab_size
+        self.hidden_size = config.hidden_size
+
+        self.dense = tf.keras.layers.Dense(
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense"
+        )
+        self.activation = get_activation("gelu")
+        self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_epsilon)
+
+        self.bias = None
+
+        self.embedding = embedding
+
+    def build(self, input_shape):
+        self.bias = self.add_weight(shape=(self.vocab_size,), initializer="zeros", trainable=True, name="bias")
+
+        super().build(input_shape)
+
+    def call(self, hidden_states, **kwargs):
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.activation(hidden_states)
+        hidden_states = self.layer_norm(hidden_states)
+
+        seq_length = shape_list(tensor=hidden_states)[1]
+        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, self.hidden_size])
+        hidden_states = tf.matmul(a=hidden_states, b=self.embedding.weight, transpose_b=True)
+        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, seq_length, self.vocab_size])
+        hidden_states = tf.nn.bias_add(value=hidden_states, bias=self.bias)
+        return hidden_states
+
+
+class FBertNSPHead(tf.keras.layers.Layer):
+    def __init__(self, config, **kwargs):
+        super().__init__(**kwargs)
+
+        self.dense = tf.keras.layers.Dense(
+            2,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense"
+        )
+
+    def call(self, hidden_states, **kwargs):
+        hidden_states = self.dense(hidden_states)
+        return hidden_states
+
+
+class FBertForPreTraining(tf.keras.Model):
+    def __init__(self, config, **kwargs):
+        super().__init__(**kwargs)
+
+        self.fbert = FBertMainLayer(config, name="fbert")
+
+        self.mlm = FBertMLMHead(config, self.fbert.embedding, name="mlm")
+        self.nsp = FBertNSPHead(config, name="nsp")
+
+    def call(
+            self,
+            input_ids,
+            attention_mask=None,
+            token_type_ids=None,
+            mlm_labels=None,
+            nsp_labels=None,
+            training=False
+    ):
+        outputs = self.fbert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            training=training
+        )
+        sequence_outputs, pooling_outputs = outputs[:2]
+
+        mlm_predictions = self.mlm(sequence_outputs)
+        nsp_predictions = self.nsp(pooling_outputs)
+
+        return mlm_predictions, nsp_predictions
+

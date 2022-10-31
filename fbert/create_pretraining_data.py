@@ -245,7 +245,7 @@ class FBertDataBuilder(object):
                 i += 1
         return instances
 
-    def load_data(self, input_files: str, shuffle=True):
+    def create_data(self, input_files: str, shuffle=True):
         # ***unpack input files***
         input_files = input_files.split(",")
 
@@ -349,9 +349,9 @@ def main(_argv):
         masked_word_prob=FLAGS.masked_word_prob
     )
     # Loads and saves the data.
-    logging.info("*****Loading from file...*****")
-    builder.load_data(FLAGS.input_files)
-    logging.info("*****Load completed.")
+    logging.info("*****Creating from file...*****")
+    builder.create_data(FLAGS.input_files)
+    logging.info("*****Create completed.")
     logging.info("*****Print first 20 example.*****")
     instances = builder.get_instances()
     for i in range(20):

@@ -107,3 +107,21 @@ def get_sinusoidal_position_embeddings(seq_len, hidden_size):
     pos_emb = tf.concat([tf.sin(pos_emb), tf.cos(pos_emb)], axis=-1)
 
     return pos_emb  # [seq_len, hidden_size]
+
+
+def compute_pretraining_loss(labels, logits):
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True, reduction=tf.keras.losses.Reduction.NONE
+    )
+    # mlm loss
+    mlm_logits, mlm_labels = logits[0], labels[0]
+    unmasked_loss = loss_fn(tf.nn.relu(mlm_logits), mlm_labels)
+    loss_mask = tf.cast(mlm_labels != -100, dtype=unmasked_loss.dtype)
+    masked_loss = unmasked_loss * loss_mask
+    mlm_loss = tf.reduce_sum(masked_loss) / tf.reduce_sum(loss_mask)
+    # nsp loss
+    nsp_logits, nsp_labels = logits[1], labels[1]
+    nsp_loss = loss_fn(nsp_labels, nsp_logits)
+    nsp_loss = tf.reduce_mean(nsp_loss)
+    total_loss = nsp_loss + mlm_loss
+    return total_loss
