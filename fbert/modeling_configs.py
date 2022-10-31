@@ -25,7 +25,7 @@ class FBertConfig(object):
             layer_norm_epsilon=1e-12,
             max_seq_length=512,
             initializer_range=0.02,
-            use_fft=False
+            use_fft=True
     ):
         """
         This is a configuration class for a modeling. It is used to instantiate a
@@ -114,7 +114,8 @@ class FBertConfig(object):
 
     def to_json(self, json_file):
         """Restores in a json file."""
-        json.dump(self.to_dict(), json_file)
+        with tf.io.gfile.GFile(json_file, "w") as file_object:
+            json.dump(self.to_dict(), file_object, indent=4)
 
     def to_string(self):
         """Returns a string in a graceful style."""
