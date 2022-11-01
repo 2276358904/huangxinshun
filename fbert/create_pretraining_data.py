@@ -55,10 +55,13 @@ class FBertData(object):
 
 
 class FBertDataBuilder(object):
-    def __init__(self, config, vocab_file, do_lower_case, do_whole_word_mask, short_seq_prob, is_dynamic_mask,
+    def __init__(self, config, input_files, output_files, vocab_file, do_lower_case, do_whole_word_mask, short_seq_prob, is_dynamic_mask,
                  dup_times, max_masked_word, masked_word_prob):
 
         self.max_seq_length = config.max_seq_length
+
+        self.input_files = input_files
+        self.output_files = output_files
 
         self.vocab_file = vocab_file
         self.do_lower_case = do_lower_case
@@ -245,9 +248,9 @@ class FBertDataBuilder(object):
                 i += 1
         return instances
 
-    def create_data(self, input_files: str, shuffle=True):
+    def create_and_load_data(self, shuffle=True):
         # ***unpack input files***
-        input_files = input_files.split(",")
+        input_files = self.input_files.split(",")
 
         # ***create the documents***
         documents = [[]]
@@ -277,19 +280,40 @@ class FBertDataBuilder(object):
         instances = []
 
         if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
-            for _ in tqdm(range(self.dup_times)):
-                instances.extend(self._create_data_from_documents(documents))
+            logging.info("*****Creating from file...*****")
+            total_instances = 0
+            for dup_index in tqdm(range(self.dup_times)):
+                logging.info("*****Creating data duplication {} from file...*****".format(dup_index))
+                self.instances = self._create_data_from_documents(documents)
+                logging.info("*****Create data duplication {} completed.*****".format(dup_index))
+                total_instances += len(self.instances)
+                if shuffle:
+                    self.random.shuffle(self.instances)
+                logging.info("*****Saving data duplication {} to file...*****".format(dup_index))
+                self._save_data_to_files()
+                logging.info("*****Save data duplication {} completed.*****".format(dup_index))
+            logging.info("*****Save all data completed.*****")
+            logging.info(
+                "*****Total saved {} instance into {}, respectively.*****".format(total_instances, self.output_files)
+            )
         elif not self.is_dynamic_mask:
-            instances.extend(self._create_data_from_documents(documents))
+            logging.info("*****Creating from file...*****")
+            self.instances = self._create_data_from_documents(documents)
+            logging.info("*****Create completed.*****")
+            if shuffle:
+                self.random.shuffle(self.instances)
+            logging.info("*****Saving to file...*****")
+            self._save_data_to_files()
+            logging.info("*****Save completed.*****")
+            logging.info(
+                "*****Total saved {} instance into {}, respectively.*****".format(len(self.instances),
+                                                                                  self.output_files)
+            )
         else:
             raise ValueError("The dup_times should be a integer(>=1).")
 
-        if shuffle:
-            self.random.shuffle(instances)
-        self.instances = instances
-
-    def save_data(self, output_files):
-        output_files = output_files.split(",")
+    def _save_data_to_files(self):
+        output_files = self.output_files.split(",")
         writers = []
         writer_index = 0
         for output_file in output_files:
@@ -338,6 +362,8 @@ def main(_argv):
     # Creates data builder.
     builder = FBertDataBuilder(
         config=config,
+        input_files=FLAGS.input_files,
+        output_files=FLAGS.output_files,
         vocab_file=FLAGS.vocab_file,
         do_lower_case=FLAGS.do_lower_case,
         do_whole_word_mask=FLAGS.do_whole_word_mask,
@@ -348,9 +374,7 @@ def main(_argv):
         masked_word_prob=FLAGS.masked_word_prob
     )
     # Loads and saves the data.
-    logging.info("*****Creating from file...*****")
-    builder.create_data(FLAGS.input_files)
-    logging.info("*****Create completed.")
+    builder.create_and_load_data()
     logging.info("*****Print first 20 example.*****")
     instances = builder.get_instances()
     for i in range(20):
@@ -360,14 +384,6 @@ def main(_argv):
                 instances[i].mlm_labels, instances[i].nsp_labels
             )
         )
-
-    logging.info("*****Saving to file...*****")
-    builder.save_data(FLAGS.output_files)
-    logging.info("*****Save completed.*****")
-    logging.info(
-        "*****Total saved {} instance into {}, respectively.*****".format(len(builder.get_instances()),
-                                                                          FLAGS.output_files)
-    )
 
 
 if __name__ == "__main__":
