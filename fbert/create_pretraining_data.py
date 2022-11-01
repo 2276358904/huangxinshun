@@ -55,8 +55,8 @@ class FBertData(object):
 
 
 class FBertDataBuilder(object):
-    def __init__(self, config, input_files, output_files, vocab_file, do_lower_case, do_whole_word_mask, short_seq_prob, is_dynamic_mask,
-                 dup_times, max_masked_word, masked_word_prob):
+    def __init__(self, config, input_files, output_files, vocab_file, do_lower_case, do_whole_word_mask, short_seq_prob,
+                 is_dynamic_mask, dup_times, max_masked_word, masked_word_prob):
 
         self.max_seq_length = config.max_seq_length
 
@@ -277,8 +277,6 @@ class FBertDataBuilder(object):
             self.random.shuffle(documents)
 
         # *** create the instances of input data. ***
-        instances = []
-
         if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
             logging.info("*****Creating from file...*****")
             total_instances = 0
