@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import linecache
 import logging
 import random
 import collections
@@ -257,27 +256,27 @@ class FBertDataBuilder(object):
         # ***create the documents***
         documents = [[]]
 
-        logging.info("*****Reading from file...*****")
+        logging.info("*****Reading from file*****")
         for index, input_file in enumerate(input_files):
-            logging.info("*****Reading text from file {}...*****".format(index))
+            logging.info("*****Reading text from file {}*****".format(index))
             start = time.time()
-            cached_data = linecache.getlines(input_file)
-            for i in range(len(cached_data)):
-                text = convert_to_unicode(cached_data[i])
-                # There, one document matches counterpart in documents(list).
-                if not text:
-                    break
-                text = text.strip()
-                # If exists the blank line, ignores it. we just take the contents of non-blank line.
-                tokens = self.tokenizer.tokenize(text)
-                if not text:
-                    documents.append([])
-                else:
-                    documents[-1].append(tokens)
+            with tf.io.gfile.GFile(input_file, "r") as reader:
+                while True:
+                    text = convert_to_unicode(reader.readline())
+                    # There, one document matches counterpart in documents(list).
+                    if not text:
+                        break
+                    text = text.strip()
+                    # If exists the blank line, ignores it. we just take the contents of non-blank line.
+                    tokens = self.tokenizer.tokenize(text)
+                    if not text:
+                        documents.append([])
+                    else:
+                        documents[-1].append(tokens)
             end = time.time()
-            logging.info("*****Read text from file {} completed...*****".format(index))
-            logging.info("*****Total cost {}s read one file.*****".format(int(round(end - start))))
-        logging.info("*****Read text from all files completed...*****")
+            logging.info("*****Read text from file {} completed*****".format(index))
+            logging.info("*****Total cost {}s read one file*****".format(int(round(end - start))))
+        logging.info("*****Read text from all files completed*****")
 
         # Removes the blank document.
         documents = [x for x in documents if x]
@@ -287,31 +286,31 @@ class FBertDataBuilder(object):
 
         # *** create the instances of input data. ***
         if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
-            logging.info("*****Creating from file...*****")
+            logging.info("*****Creating from file*****")
             total_instances = 0
             for dup_index in tqdm(range(self.dup_times)):
-                logging.info("*****Creating data duplication {} from file...*****".format(dup_index))
+                logging.info("*****Creating data duplication {} from file*****".format(dup_index))
                 self.instances = self._create_data_from_documents(documents)
-                logging.info("*****Create data duplication {} completed.*****".format(dup_index))
+                logging.info("*****Create data duplication {} completed*****".format(dup_index))
                 total_instances += len(self.instances)
                 if shuffle:
                     self.random.shuffle(self.instances)
-                logging.info("*****Saving data duplication {} to file...*****".format(dup_index))
+                logging.info("*****Saving data duplication {} to file*****".format(dup_index))
                 self._save_data_to_files()
-                logging.info("*****Save data duplication {} completed.*****".format(dup_index))
-            logging.info("*****Save all data completed.*****")
+                logging.info("*****Save data duplication {} completed*****".format(dup_index))
+            logging.info("*****Save all data completed*****")
             logging.info(
                 "*****Total saved {} instance into {}, respectively.*****".format(total_instances, self.output_files)
             )
         elif not self.is_dynamic_mask:
-            logging.info("*****Creating from file...*****")
+            logging.info("*****Creating from file*****")
             self.instances = self._create_data_from_documents(documents)
-            logging.info("*****Create completed.*****")
+            logging.info("*****Create completed*****")
             if shuffle:
                 self.random.shuffle(self.instances)
-            logging.info("*****Saving to file...*****")
+            logging.info("*****Saving to file*****")
             self._save_data_to_files()
-            logging.info("*****Save completed.*****")
+            logging.info("*****Save completed*****")
             logging.info(
                 "*****Total saved {} instance into {}, respectively.*****".format(len(self.instances),
                                                                                   self.output_files)
@@ -382,7 +381,7 @@ def main(_argv):
     )
     # Loads and saves the data.
     builder.create_and_load_data()
-    logging.info("*****Print first 20 example.*****")
+    logging.info("*****Print first 20 example*****")
     instances = builder.get_instances()
     for i in range(20):
         logging.info(
