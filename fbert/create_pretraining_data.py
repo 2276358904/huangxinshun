@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import linecache
 import logging
 import random
 import collections
@@ -260,19 +261,19 @@ class FBertDataBuilder(object):
         for index, input_file in enumerate(input_files):
             logging.info("*****Reading text from file {}...*****".format(index))
             start = time.time()
-            with tf.io.gfile.GFile(input_file, "r") as reader:
-                while True:
-                    text = convert_to_unicode(reader.readline())
-                    # There, one document matches counterpart in documents(list).
-                    if not text:
-                        break
-                    text = text.strip()
-                    # If exists the blank line, ignores it. we just take the contents of non-blank line.
-                    tokens = self.tokenizer.tokenize(text)
-                    if not text:
-                        documents.append([])
-                    else:
-                        documents[-1].append(tokens)
+            cached_data = linecache.getlines(input_file)
+            for i in range(len(cached_data)):
+                text = convert_to_unicode(cached_data[i])
+                # There, one document matches counterpart in documents(list).
+                if not text:
+                    break
+                text = text.strip()
+                # If exists the blank line, ignores it. we just take the contents of non-blank line.
+                tokens = self.tokenizer.tokenize(text)
+                if not text:
+                    documents.append([])
+                else:
+                    documents[-1].append(tokens)
             end = time.time()
             logging.info("*****Read text from file {} completed...*****".format(index))
             logging.info("*****Total cost {}s read one file.*****".format(int(round(end - start))))
