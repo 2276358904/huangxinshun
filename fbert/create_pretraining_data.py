@@ -5,6 +5,7 @@ from __future__ import print_function
 import logging
 import random
 import collections
+import time
 
 import tensorflow as tf
 
@@ -255,7 +256,10 @@ class FBertDataBuilder(object):
         # ***create the documents***
         documents = [[]]
 
-        for input_file in input_files:
+        logging.info("*****Reading text from file...*****")
+        for index, input_file in enumerate(input_files):
+            logging.info("*****Reading text from file {}...*****".format(index))
+            start = time.time()
             with tf.io.gfile.GFile(input_file, "r") as reader:
                 while True:
                     text = convert_to_unicode(reader.readline())
@@ -269,6 +273,10 @@ class FBertDataBuilder(object):
                         documents.append([])
                     else:
                         documents[-1].append(tokens)
+            end = time.time()
+            logging.info("*****Read text from file {} completed...*****".format(index))
+            logging.info("*****Total cost {}s read one file.*****".format(int(round(end - start))))
+        logging.info("*****Read text from all files completed...*****")
 
         # Removes the blank document.
         documents = [x for x in documents if x]
