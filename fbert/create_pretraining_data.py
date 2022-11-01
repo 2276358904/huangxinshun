@@ -257,7 +257,7 @@ class FBertDataBuilder(object):
         # ***create the documents***
         documents = [[]]
 
-        logging.info("*****Reading text from file...*****")
+        logging.info("*****Reading from file...*****")
         for index, input_file in enumerate(input_files):
             logging.info("*****Reading text from file {}...*****".format(index))
             start = time.time()
