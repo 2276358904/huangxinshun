@@ -286,7 +286,6 @@ class FBertDataBuilder(object):
 
         if shuffle:
             self.random.shuffle(instances)
-        print(len(instances))
         self.instances = instances
 
     def save_data(self, output_files):
