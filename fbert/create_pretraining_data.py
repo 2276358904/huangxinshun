@@ -6,7 +6,6 @@ import linecache
 import logging
 import random
 import collections
-import time
 
 import tensorflow as tf
 
@@ -81,6 +80,9 @@ class FBertDataBuilder(object):
         self.tokenizer = self.init_tokenizer()
         self.documents = [[]]
         self.instances = []
+
+        self.writers = []
+        self.writer_index = 0
 
     def get_instances(self):
         return self.instances
@@ -271,6 +273,7 @@ class FBertDataBuilder(object):
 
             # *** create the instances of input data. ***
             if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
+                logging.info("*****Total lines {} in file*****".format(length))
                 logging.info("*****Reading lines range in [{},{}) from file*****".format(i, i + block_length))
                 logging.info("*****Creating from file*****")
                 total_instances = 0
@@ -354,18 +357,22 @@ class FBertDataBuilder(object):
         self.documents = [[]]
 
     def load_and_save_data(self, shuffle=True):
-        # ***unpack input files***
+        # ***unpack input and output files***
         input_files = self.input_files.split(",")
+        output_files = self.output_files.split(",")
+
+        for output_file in output_files:
+            self.writers.append(tf.io.TFRecordWriter(output_file))
 
         for index, input_file in enumerate(input_files):
             logging.info("Reading from file {}".format(input_file))
             cached_data = linecache.getlines(input_file)
 
-            block_length = 1000000
+            block_length = 100000
             cached_block = len(cached_data) // block_length
 
             is_big_file = False
-            if cached_block >= 1:
+            if cached_block >= 10:
                 is_big_file = True
 
             if is_big_file:
@@ -375,13 +382,10 @@ class FBertDataBuilder(object):
 
             linecache.clearcache()
 
-    def _save_data_to_files(self):
-        output_files = self.output_files.split(",")
-        writers = []
-        writer_index = 0
-        for output_file in output_files:
-            writers.append(tf.io.TFRecordWriter(output_file))
+        for writer in self.writers:
+            writer.close()
 
+    def _save_data_to_files(self):
         for index, instance in enumerate(self.instances):
             input_ids = instance.input_ids
             attention_mask = instance.attention_mask
@@ -411,11 +415,8 @@ class FBertDataBuilder(object):
             example = tf.train.Example(features=tf.train.Features(feature=feature))
             serialized_example = example.SerializeToString()
 
-            writers[writer_index].write(serialized_example)
-            writer_index = (writer_index + 1) % len(writers)
-
-        for writer in writers:
-            writer.close()
+            self.writers[self.writer_index].write(serialized_example)
+            self.writer_index = (self.writer_index + 1) % len(self.writers)
 
 
 def main(_argv):
