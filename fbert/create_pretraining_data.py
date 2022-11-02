@@ -289,6 +289,7 @@ class FBertDataBuilder(object):
                                                                                       self.output_files)
                 )
             elif not self.is_dynamic_mask:
+                logging.info("*****Total lines {} in file*****".format(length))
                 logging.info("*****Reading lines range in [{},{}) from file*****".format(i, i + block_length))
                 logging.info("*****Creating from file*****")
                 self.instances = self._create_data_from_documents(self.documents)
