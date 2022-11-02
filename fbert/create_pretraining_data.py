@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import linecache
 import logging
 import random
 import collections
@@ -78,6 +79,7 @@ class FBertDataBuilder(object):
 
         self.random = random.Random()
         self.tokenizer = self.init_tokenizer()
+        self.documents = [[]]
         self.instances = []
 
     def get_instances(self):
@@ -249,75 +251,128 @@ class FBertDataBuilder(object):
                 i += 1
         return instances
 
-    def create_and_load_data(self, shuffle=True):
-        # ***unpack input files***
-        input_files = self.input_files.split(",")
+    def _load_and_save_data_from_big_file(self, cached_data, block_length, shuffle):
+        length = len(cached_data) // block_length * block_length
 
-        # ***create the documents***
-        documents = [[]]
+        for i in range(0, length, block_length):
+            for j in range(i, i + block_length):
+                text = convert_to_unicode(cached_data[j])
+                text = text.strip()
+                tokens = self.tokenizer.tokenize(text)
+                if not text:
+                    self.documents.append([])
+                else:
+                    self.documents[-1].append(tokens)
+            # Removes the blank document.
+            self.documents = [x for x in self.documents if x]
+            # Shuffles the documents in a random sequence.
+            if shuffle:
+                self.random.shuffle(self.documents)
 
-        logging.info("*****Reading from file*****")
-        for index, input_file in enumerate(input_files):
-            logging.info("*****Reading text from file {}*****".format(index))
-            start = time.time()
+            # *** create the instances of input data. ***
+            if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
+                logging.info("*****Reading lines range in [{},{}] from file*****".format(i, i + block_length))
+                logging.info("*****Creating from file*****")
+                total_instances = 0
+                for _ in tqdm(range(self.dup_times)):
+                    self.instances = self._create_data_from_documents(self.documents)
+                    total_instances += len(self.instances)
+                    if shuffle:
+                        self.random.shuffle(self.instances)
+                    self._save_data_to_files()
+                logging.info("*****Saved all completely*****")
+                logging.info(
+                    "*****Total saved {} instance into {}, respectively.*****".format(total_instances,
+                                                                                      self.output_files)
+                )
+            elif not self.is_dynamic_mask:
+                logging.info("*****Reading lines range in [{},{}] from file*****".format(i, i + block_length))
+                logging.info("*****Creating from file*****")
+                self.instances = self._create_data_from_documents(self.documents)
+                if shuffle:
+                    self.random.shuffle(self.instances)
+                self._save_data_to_files()
+                logging.info("*****Saved all completely*****")
+                logging.info(
+                    "*****Total saved {} instance into {}, respectively.*****".format(len(self.instances),
+                                                                                      self.output_files)
+                )
+            else:
+                raise ValueError("The dup_times should be a integer(>=1).")
+            # Resets documents.
+            self.documents = [[]]
+        logging.info(
+            "*****Total saved {} instance from input file into {}, respectively.*****".format(length, self.output_files)
+        )
 
-            with tf.io.gfile.GFile(input_file, "r") as reader:
-                while True:
-                    text = convert_to_unicode(reader.readline())
-                    if not text:
-                        break
-                    text = text.strip()
-                    # If exists the blank line, ignores it. we just take the contents of non-blank line.
-                    tokens = self.tokenizer.tokenize(text)
-                    if not text:
-                        documents.append([])
-                    else:
-                        documents[-1].append(tokens)
-
-            end = time.time()
-            logging.info("*****Read text from file {} completed*****".format(index))
-            logging.info("*****Total cost {}s read one file*****".format(int(round(end - start))))
-        logging.info("*****Read text from all files completed*****")
-
+    def _load_and_save_data(self, input_file, shuffle):
+        with tf.io.gfile.GFile(input_file, "r") as reader:
+            while True:
+                text = convert_to_unicode(reader.readline())
+                if not text:
+                    break
+                text = text.strip()
+                tokens = self.tokenizer.tokenize(text)
+                if not text:
+                    self.documents.append([])
+                else:
+                    self.documents[-1].append(tokens)
         # Removes the blank document.
-        documents = [x for x in documents if x]
+        self.documents = [x for x in self.documents if x]
         # Shuffles the documents in a random sequence.
         if shuffle:
-            self.random.shuffle(documents)
+            self.random.shuffle(self.documents)
 
         # *** create the instances of input data. ***
         if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
             logging.info("*****Creating from file*****")
             total_instances = 0
-            for dup_index in tqdm(range(self.dup_times)):
-                logging.info("*****Creating data duplication {} from file*****".format(dup_index))
-                self.instances = self._create_data_from_documents(documents)
-                logging.info("*****Create data duplication {} completed*****".format(dup_index))
+            for _ in tqdm(range(self.dup_times)):
+                self.instances = self._create_data_from_documents(self.documents)
                 total_instances += len(self.instances)
                 if shuffle:
                     self.random.shuffle(self.instances)
-                logging.info("*****Saving data duplication {} to file*****".format(dup_index))
                 self._save_data_to_files()
-                logging.info("*****Save data duplication {} completed*****".format(dup_index))
-            logging.info("*****Save all data completed*****")
+            logging.info("*****Saved all completely*****")
             logging.info(
                 "*****Total saved {} instance into {}, respectively.*****".format(total_instances, self.output_files)
             )
         elif not self.is_dynamic_mask:
             logging.info("*****Creating from file*****")
-            self.instances = self._create_data_from_documents(documents)
-            logging.info("*****Create completed*****")
+            self.instances = self._create_data_from_documents(self.documents)
             if shuffle:
                 self.random.shuffle(self.instances)
-            logging.info("*****Saving to file*****")
             self._save_data_to_files()
-            logging.info("*****Save completed*****")
+            logging.info("*****Saved all completely*****")
             logging.info(
                 "*****Total saved {} instance into {}, respectively.*****".format(len(self.instances),
                                                                                   self.output_files)
             )
         else:
             raise ValueError("The dup_times should be a integer(>=1).")
+        # Resets documents.
+        self.documents = [[]]
+
+    def load_and_save_data(self, shuffle=True):
+        # ***unpack input files***
+        input_files = self.input_files.split(",")
+
+        for index, input_file in enumerate(input_files):
+            cached_data = linecache.getlines(input_file)
+
+            block_length = 1000000
+            cached_block = len(cached_data) // block_length
+
+            is_big_file = False
+            if cached_block >= 1:
+                is_big_file = True
+
+            if is_big_file:
+                self._load_and_save_data_from_big_file(cached_data, block_length, shuffle)
+            else:
+                self._load_and_save_data(input_file, shuffle)
+
+            linecache.clearcache()
 
     def _save_data_to_files(self):
         output_files = self.output_files.split(",")
