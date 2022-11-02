@@ -271,7 +271,7 @@ class FBertDataBuilder(object):
 
             # *** create the instances of input data. ***
             if self.is_dynamic_mask and self.dup_times >= 1 and isinstance(self.dup_times, int):
-                logging.info("*****Reading lines range in [{},{}] from file*****".format(i, i + block_length))
+                logging.info("*****Reading lines range in [{},{}) from file*****".format(i, i + block_length))
                 logging.info("*****Creating from file*****")
                 total_instances = 0
                 for _ in tqdm(range(self.dup_times)):
@@ -286,7 +286,7 @@ class FBertDataBuilder(object):
                                                                                       self.output_files)
                 )
             elif not self.is_dynamic_mask:
-                logging.info("*****Reading lines range in [{},{}] from file*****".format(i, i + block_length))
+                logging.info("*****Reading lines range in [{},{}) from file*****".format(i, i + block_length))
                 logging.info("*****Creating from file*****")
                 self.instances = self._create_data_from_documents(self.documents)
                 if shuffle:
