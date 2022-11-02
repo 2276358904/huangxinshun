@@ -435,8 +435,9 @@ def main(_argv):
         max_masked_word=FLAGS.max_masked_word,
         masked_word_prob=FLAGS.masked_word_prob
     )
-    # Loads and saves the data.
-    builder.create_and_load_data()
+
+    builder.load_and_save_data(shuffle=True)
+
     logging.info("*****Print first 20 example*****")
     instances = builder.get_instances()
     for i in range(20):
