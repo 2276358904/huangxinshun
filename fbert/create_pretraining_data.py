@@ -358,6 +358,7 @@ class FBertDataBuilder(object):
         input_files = self.input_files.split(",")
 
         for index, input_file in enumerate(input_files):
+            logging.info("Reading from file {}".format(input_file))
             cached_data = linecache.getlines(input_file)
 
             block_length = 1000000
