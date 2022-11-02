@@ -7,7 +7,6 @@ import time
 import os
 
 import tensorflow as tf
-import tensorflow_datasets as tfds
 
 from absl import flags, app
 
@@ -36,7 +35,8 @@ flags.DEFINE_float("weight_decay_rate", 0.01, "The weight decay rate of optimize
 # Defines the training and evaluation hyperparameter.
 flags.DEFINE_integer("train_batch_size", 16, "Batch size of training dataset.")
 flags.DEFINE_integer("eval_batch_size", 8, "Batch size of evaluation dataset.")
-flags.DEFINE_bool("use_tpu", True, "Whether to use tpu(true) or cpu/gpu(false) train the model.")
+flags.DEFINE_bool("use_tpu", True, "Whether to use tpu(true) or cpu/gpu(false) training the model.")
+flags.DEFINE_bool("is_distribute", True, "Whether to use distributed strategy training the model.")
 flags.DEFINE_bool("is_training", True, "Whether is training or evaluating the model.")
 flags.DEFINE_integer("num_print_steps", 10, "The steps in which print any train details, like loss, accuracy.")
 flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
@@ -44,7 +44,8 @@ flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
-                 input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, num_print_steps, epochs):
+                 input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distribute,
+                 num_print_steps, epochs):
         self.config = config
         self.is_training = is_training
         # model configuration hyperparameter
@@ -71,6 +72,7 @@ class FBertPretrainingTrainer(object):
         self.checkpoint_dir = checkpoint_dir
 
         self.use_tpu = use_tpu
+        self.is_distribute = is_distribute
         # tpu strategy
         self.strategy = None
 
@@ -126,7 +128,7 @@ class FBertPretrainingTrainer(object):
             lambda data: self._decode_dataset(data, name_to_features),
             num_parallel_calls=self.num_proc
         )
-        dataset = dataset.batch(batch_size, drop_remainder=True)
+        dataset = dataset.batch(batch_size, drop_remainder=True, num_parallel_calls=self.num_proc)
         return dataset
 
     @staticmethod
@@ -137,6 +139,11 @@ class FBertPretrainingTrainer(object):
         # Starting initialize tpu.
         tf.tpu.experimental.initialize_tpu_system(resolver)
         strategy = tf.distribute.TPUStrategy(resolver)
+        return strategy
+
+    @staticmethod
+    def _init_gpu_strategy():
+        strategy = tf.distribute.MirroredStrategy()
         return strategy
 
     @staticmethod
@@ -163,7 +170,7 @@ class FBertPretrainingTrainer(object):
         return checkpoint, checkpoint_manager
 
     @tf.function
-    def train_step_for_tpu(self, iterator):
+    def train_step_for_distribute(self, iterator):
         def step_fn(inputs):
             if len(inputs) == 5:
                 input_ids = inputs["input_ids"]
@@ -217,10 +224,32 @@ class FBertPretrainingTrainer(object):
         self.metrics[0].update_state(loss)
         self.metrics[1].update_state(labels, logits)
 
-    def do_training(self):
-        if self.use_tpu:
-            self.strategy = self._init_tpu_strategy()
+    def test_step(self, inputs):
+        if len(inputs) == 5:
+            input_ids = inputs["input_ids"]
+            attention_mask = inputs["attention_mask"]
+            token_type_ids = inputs["token_type_ids"]
+            mlm_labels = inputs["mlm_labels"]
+            nsp_labels = inputs["nsp_labels"]
+        else:
+            raise ValueError("The input must be a tuple of length 5.")
+        labels = (mlm_labels, nsp_labels)
+        logits = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            training=True
+        )
+        loss = compute_pretraining_loss(labels, logits)
+        self.metrics[0].update_state(loss)
+        self.metrics[1].update_state(labels, logits)
 
+    def do_training(self):
+        if self.is_distribute:
+            if self.use_tpu:
+                self.strategy = self._init_tpu_strategy()
+            else:
+                self.strategy = self._init_gpu_strategy()
             with self.strategy.scope():
                 self.model, self.optimizer = self._init_model_and_optimizer(
                     self.config,
@@ -250,7 +279,7 @@ class FBertPretrainingTrainer(object):
             for epoch in range(self.epochs):
                 epoch_start_time = time.time()
                 for step, iterator in enumerate(train_dataset):
-                    self.train_step_for_tpu(iterator)
+                    self.train_step_for_distribute(iterator)
                     if step % self.num_print_steps == 0:
                         logging.info(
                             "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
@@ -272,6 +301,10 @@ class FBertPretrainingTrainer(object):
                 )
                 self.metrics[0].reset_states()
                 self.metrics[1].reset_states()
+            else:
+                raise ValueError(
+                    "When use tpu to train the model, you must set both use_tpu and is_distribute to true."
+                )
         else:
             self.model, self.optimizer = self._init_model_and_optimizer(
                 self.config,
@@ -288,13 +321,14 @@ class FBertPretrainingTrainer(object):
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
                 logging.info("Restoring model and optimizer completely from checkpoint manager.")
             else:
-                logging.info("Creating a new model and optimizer completely.")
+                logging.info("Create a new model and optimizer completely.")
 
             logging.info("Start loading the dataset.")
             train_dataset = self.load_dataset(self.train_batch_size, is_training=True)
             logging.info("Loaded dataset completely.")
 
-            logging.info("Starting training the model.")
+            logging.info("Start training the model.")
+            logging.info("Batch size: {}".format(self.train_batch_size))
             for epoch in range(self.epochs):
                 epoch_start_time = time.time()
                 for step, inputs in enumerate(train_dataset):
@@ -322,7 +356,50 @@ class FBertPretrainingTrainer(object):
                 self.metrics[1].reset_states()
 
     def do_evaluating(self):
-        pass
+        self.model, self.optimizer = self._init_model_and_optimizer(
+            self.config,
+            self.init_lr,
+            self.num_train_steps,
+            self.num_warmup_steps,
+            self.weight_decay_rate
+        )
+        self.metrics.extend([tf.keras.metrics.Mean(), FBertPretrainingAccuracy()])
+        self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
+            self.model, self.optimizer, self.checkpoint_dir
+        )
+        if self.checkpoint_manager.latest_checkpoint:
+            self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
+            logging.info("Restoring model and optimizer completely from checkpoint manager.")
+        else:
+            logging.info("Creating a new model and optimizer completely.")
+
+        logging.info("Start loading the dataset.")
+        train_dataset = self.load_dataset(self.eval_batch_size, is_training=False)
+        logging.info("Loaded dataset completely.")
+
+        logging.info("Start evaluating the model.")
+        logging.info("Batch size: {}".format(self.eval_batch_size))
+        for epoch in range(self.epochs):
+            epoch_start_time = time.time()
+            for step, inputs in enumerate(train_dataset):
+                self.test_step(inputs)
+                if step % self.num_print_steps == 0:
+                    logging.info(
+                        "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
+                            epoch, step, self.metrics[0].result(), self.metrics[1].result()
+                        )
+                    )
+            epoch_end_time = time.time()
+            logging.info(
+                "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
+                    epoch, self.metrics[0].result(), self.metrics[1].result()
+                )
+            )
+            logging.info(
+                "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
+            )
+            self.metrics[0].reset_states()
+            self.metrics[1].reset_states()
 
 
 def main(_argv):
@@ -343,9 +420,11 @@ def main(_argv):
         eval_batch_size=FLAGS.eval_batch_size,
         checkpoint_dir=FLAGS.checkpoint_dir,
         use_tpu=FLAGS.use_tpu,
+        is_distribute=FLAGS.is_distribute,
         num_print_steps=FLAGS.num_print_steps,
         epochs=FLAGS.epochs
     )
+    #
     if FLAGS.is_training:
         trainer.do_training()
     else:

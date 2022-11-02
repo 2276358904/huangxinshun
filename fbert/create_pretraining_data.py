@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import linecache
 import logging
 import random
 import collections
@@ -260,10 +261,10 @@ class FBertDataBuilder(object):
         for index, input_file in enumerate(input_files):
             logging.info("*****Reading text from file {}*****".format(index))
             start = time.time()
+
             with tf.io.gfile.GFile(input_file, "r") as reader:
                 while True:
                     text = convert_to_unicode(reader.readline())
-                    # There, one document matches counterpart in documents(list).
                     if not text:
                         break
                     text = text.strip()
@@ -273,6 +274,7 @@ class FBertDataBuilder(object):
                         documents.append([])
                     else:
                         documents[-1].append(tokens)
+
             end = time.time()
             logging.info("*****Read text from file {} completed*****".format(index))
             logging.info("*****Total cost {}s read one file*****".format(int(round(end - start))))
