@@ -41,7 +41,7 @@ flags.DEFINE_float(
     "Probability of creating sequences which are shorter than the maximum length."
 )
 flags.DEFINE_bool("is_dynamic_mask", True, "Whether to use dynamic mask strategy.")
-flags.DEFINE_integer("dup_times", 10, "Number of times to duplicate the input data (with different masks).")
+flags.DEFINE_integer("dup_times", 5, "Number of times to duplicate the input data (with different masks).")
 flags.DEFINE_integer("max_masked_word", 20, "Maximum length of masked word in a sequence.")
 flags.DEFINE_float("masked_word_prob", 0.15, "Probability of masked word in a sequence.")
 
