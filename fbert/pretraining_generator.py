@@ -47,7 +47,7 @@ flags.DEFINE_float("masked_word_prob", 0.15, "Probability of masked word in a se
 
 
 @dataclass
-class FBertData(object):
+class FBertPretrainingData(object):
     input_ids: List[int]
     attention_mask: List[int]
     token_type_ids: List[int]
@@ -55,7 +55,7 @@ class FBertData(object):
     nsp_labels: List[int]
 
 
-class FBertDataBuilder(object):
+class FBertPretrainingDataBuilder(object):
     def __init__(self, config, input_files, output_files, vocab_file, do_lower_case, do_whole_word_mask, short_seq_prob,
                  is_dynamic_mask, dup_times, max_masked_word, masked_word_prob):
 
@@ -240,7 +240,7 @@ class FBertDataBuilder(object):
                         tokens, mlm_labels, nsp_labels = self._create_mlm_and_nsp_labels(tokens, is_random_next)
                         input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
                         attention_mask = [1] * len(input_ids)
-                        instance = FBertData(
+                        instance = FBertPretrainingData(
                             input_ids=input_ids,
                             attention_mask=attention_mask,
                             token_type_ids=token_type_ids,
@@ -425,7 +425,7 @@ def main(_argv):
     config = FBertConfig(max_seq_length=128)
 
     # Creates data builder.
-    builder = FBertDataBuilder(
+    builder = FBertPretrainingDataBuilder(
         config=config,
         input_files=FLAGS.input_files,
         output_files=FLAGS.output_files,
