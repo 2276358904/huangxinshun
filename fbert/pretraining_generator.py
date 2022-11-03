@@ -55,7 +55,7 @@ class FBertPretrainingData(object):
     nsp_labels: List[int]
 
 
-class FBertPretrainingDataBuilder(object):
+class FBertPretrainingDataGenerator(object):
     def __init__(self, config, input_files, output_files, vocab_file, do_lower_case, do_whole_word_mask, short_seq_prob,
                  is_dynamic_mask, dup_times, max_masked_word, masked_word_prob):
 
@@ -425,7 +425,7 @@ def main(_argv):
     config = FBertConfig(max_seq_length=128)
 
     # Creates data builder.
-    builder = FBertPretrainingDataBuilder(
+    builder = FBertPretrainingDataGenerator(
         config=config,
         input_files=FLAGS.input_files,
         output_files=FLAGS.output_files,
