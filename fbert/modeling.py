@@ -523,12 +523,13 @@ class FBertForSequenceClassification(tf.keras.Model):
 
         self.num_labels = num_labels
 
+        self.fbert = FBertMainLayer(config, name="fbert")
+
         self.dense = tf.keras.layers.Dense(
             self.num_labels,
             kernel_initializer=get_initializer(config.initializer_range),
             name="dense"
         )
-        self.fbert = FBertMainLayer(config, name="fbert")
 
     def call(
             self,
@@ -544,5 +545,6 @@ class FBertForSequenceClassification(tf.keras.Model):
             training=training
         )
         pooling_outputs = self.dense(outputs[1])
+
         return pooling_outputs
 

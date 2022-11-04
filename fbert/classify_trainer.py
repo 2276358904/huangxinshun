@@ -110,8 +110,6 @@ class FBertClassifyTrainer(object):
             metrics.append(tf.keras.metrics.MeanSquaredError())
         else:
             metrics.append(tf.keras.metrics.SparseCategoricalAccuracy())
-        if not self.is_training:
-            pass
         return metrics
 
     @staticmethod
@@ -150,9 +148,7 @@ class FBertClassifyTrainer(object):
             else:
                 input_file = os.path.join(input_dir, "test_example.bin")
 
-        input_files = [input_file]
-
-        dataset = tf.data.TFRecordDataset(input_files)
+        dataset = tf.data.TFRecordDataset(input_file)
 
         name_to_features = {
             "input_ids": tf.io.FixedLenFeature([self.config.max_seq_length], tf.int64),
@@ -217,7 +213,7 @@ class FBertClassifyTrainer(object):
         gradients = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
         self.metrics[0].update_state(loss)
-        self.metrics[1].updata_state(labels, logits)
+        self.metrics[1].update_state(labels, logits)
 
     def test_step(self, inputs):
         if len(inputs) == 4:
@@ -235,7 +231,7 @@ class FBertClassifyTrainer(object):
         )
         loss = compute_sequence_classification_loss(labels, logits)
         self.metrics[0].update_state(loss)
-        self.metrics[1].updata_state(labels, logits)
+        self.metrics[1].update_state(labels, logits)
         self.metrics[2].update_state(labels, logits)
 
     def do_training(self):
