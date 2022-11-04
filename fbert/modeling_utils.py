@@ -128,7 +128,7 @@ def compute_pretraining_loss(labels, logits):
     return total_loss
 
 
-def compute_pretraining_loss_for_tpu(labels, logits):
+def compute_pretraining_loss_for_distribute(labels, logits):
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
         from_logits=True, reduction=tf.keras.losses.Reduction.NONE
     )
@@ -169,30 +169,4 @@ def compute_sequence_classification_loss_for_distribute(labels, logits):
     return loss_fn(labels, logits)
 
 
-class FBertPretrainingAccuracy(tf.keras.metrics.Metric):
-    def __init__(self, name="accuracy", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.accuracy = self.add_weight(name="accuracy", initializer="zero")
-
-    def update_state(self, y_true, y_pred, sample_weight=None):
-        labels, logits = y_true, y_pred
-        mlm_logits, mlm_labels = logits[0], labels[0]
-        unmasked_accuracy = tf.keras.metrics.sparse_categorical_accuracy(tf.nn.relu(mlm_labels), mlm_logits)
-        accuracy_mask = tf.cast(mlm_labels != -100, unmasked_accuracy.dtype)
-        masked_accuracy = unmasked_accuracy * accuracy_mask
-        mlm_accuracy = tf.reduce_sum(masked_accuracy) / tf.reduce_sum(accuracy_mask)
-        # nsp accuracy
-        nsp_logits, nsp_labels = logits[1], labels[1]
-        nsp_accuracy = tf.keras.metrics.sparse_categorical_accuracy(nsp_labels, nsp_logits)
-        nsp_accuracy = tf.reduce_mean(nsp_accuracy)
-
-        total_accuracy = (mlm_accuracy + nsp_accuracy) / 2
-        self.accuracy.assign(total_accuracy)
-
-    def result(self):
-        return self.accuracy
-
-    def reset_states(self):
-        # The state of the metric will be reset at the start of each epoch.
-        self.accuracy.assign(0.0)
 

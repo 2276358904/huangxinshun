@@ -12,7 +12,7 @@ from absl import flags, app
 
 from modeling import FBertForPreTraining
 from modeling_configs import FBertConfig
-from modeling_utils import compute_pretraining_loss, compute_pretraining_loss_for_tpu, FBertPretrainingAccuracy
+from modeling_utils import compute_pretraining_loss, compute_pretraining_loss_for_distribute
 from optimization import create_optimizer
 
 
@@ -191,13 +191,12 @@ class FBertPretrainingTrainer(object):
                     token_type_ids=token_type_ids,
                     training=True
                 )
-                loss = compute_pretraining_loss_for_tpu(labels, logits)
+                loss = compute_pretraining_loss_for_distribute(labels, logits)
                 loss = tf.nn.compute_average_loss(loss, global_batch_size=self.train_batch_size)
             grads = tape.gradient(loss, self.model.trainable_variables)
             self.optimizer.apply_gradients(list(zip(grads, self.model.trainable_variables)))
             # update metrics
             self.metrics[0].update_state(loss * self.strategy.num_replicas_in_sync)
-            self.metrics[1].update_state(labels, logits)
 
         self.strategy.run(step_fn, args=(distributed_inputs,))
 
@@ -224,7 +223,6 @@ class FBertPretrainingTrainer(object):
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
 
         self.metrics[0].update_state(loss)
-        self.metrics[1].update_state(labels, logits)
 
     def test_step(self, inputs):
         if len(inputs) == 5:
@@ -244,7 +242,6 @@ class FBertPretrainingTrainer(object):
         )
         loss = compute_pretraining_loss(labels, logits)
         self.metrics[0].update_state(loss)
-        self.metrics[1].update_state(labels, logits)
 
     def do_training(self):
         if self.is_distributed:
@@ -260,7 +257,7 @@ class FBertPretrainingTrainer(object):
                     self.num_warmup_steps,
                     self.weight_decay_rate
                 )
-                self.metrics.extend([tf.keras.metrics.Mean(), FBertPretrainingAccuracy()])
+                self.metrics.extend([tf.keras.metrics.Mean()])
             self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
                 self.model, self.optimizer, self.checkpoint_dir
             )
@@ -284,9 +281,7 @@ class FBertPretrainingTrainer(object):
                     self.train_step_for_distribute(distributed_inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
-                            "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
-                                epoch, step, self.metrics[0].result(), self.metrics[1].result()
-                            )
+                            "epoch: {}, step: {}, loss: {:.2f}.".format(epoch, step, self.metrics[0].result())
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
@@ -295,15 +290,12 @@ class FBertPretrainingTrainer(object):
                         )
                 epoch_end_time = time.time()
                 logging.info(
-                    "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
-                        epoch, self.metrics[0].result(), self.metrics[1].result()
-                    )
+                    "epoch: {}, loss: {:.2f}.".format(epoch, self.metrics[0].result())
                 )
                 logging.info(
                     "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
                 )
                 self.metrics[0].reset_states()
-                self.metrics[1].reset_states()
             else:
                 raise ValueError(
                     "When use tpu to train the model, you must set both use_tpu and is_distribute to true."
@@ -316,7 +308,7 @@ class FBertPretrainingTrainer(object):
                 self.num_warmup_steps,
                 self.weight_decay_rate
             )
-            self.metrics.extend([tf.keras.metrics.Mean(), FBertPretrainingAccuracy()])
+            self.metrics.extend([tf.keras.metrics.Mean()])
             self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
                 self.model, self.optimizer, self.checkpoint_dir
             )
@@ -338,9 +330,7 @@ class FBertPretrainingTrainer(object):
                     self.train_step(inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
-                            "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
-                                epoch, step, self.metrics[0].result(), self.metrics[1].result()
-                            )
+                            "epoch: {}, step: {}, loss: {:.2f}.".format(epoch, step, self.metrics[0].result())
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
@@ -349,15 +339,12 @@ class FBertPretrainingTrainer(object):
                         )
                 epoch_end_time = time.time()
                 logging.info(
-                    "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
-                        epoch, self.metrics[0].result(), self.metrics[1].result()
-                    )
+                    "epoch: {}, loss: {:.2f}.".format(epoch, self.metrics[0].result(), self.metrics[1].result())
                 )
                 logging.info(
                     "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
                 )
                 self.metrics[0].reset_states()
-                self.metrics[1].reset_states()
 
     def do_evaluating(self):
         self.model, self.optimizer = self._init_model_and_optimizer(
@@ -367,7 +354,7 @@ class FBertPretrainingTrainer(object):
             self.num_warmup_steps,
             self.weight_decay_rate
         )
-        self.metrics.extend([tf.keras.metrics.Mean(), FBertPretrainingAccuracy()])
+        self.metrics.extend([tf.keras.metrics.Mean()])
         self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
             self.model, self.optimizer, self.checkpoint_dir
         )
@@ -389,21 +376,16 @@ class FBertPretrainingTrainer(object):
                 self.test_step(inputs)
                 if step % self.num_print_steps == 0:
                     logging.info(
-                        "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
-                            epoch, step, self.metrics[0].result(), self.metrics[1].result()
-                        )
+                        "epoch: {}, step: {}, loss: {:.2f}.".format(epoch, step, self.metrics[0].result())
                     )
             epoch_end_time = time.time()
             logging.info(
-                "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
-                    epoch, self.metrics[0].result(), self.metrics[1].result()
-                )
+                "epoch: {}, loss: {:.2f}.".format(epoch, self.metrics[0].result(), self.metrics[1].result())
             )
             logging.info(
                 "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
             )
             self.metrics[0].reset_states()
-            self.metrics[1].reset_states()
 
 
 def main(_argv):
