@@ -280,8 +280,8 @@ class FBertPretrainingTrainer(object):
             logging.info("Starting training the model.")
             for epoch in range(self.epochs):
                 epoch_start_time = time.time()
-                for step, iterator in enumerate(train_dataset):
-                    self.train_step_for_distribute(iterator)
+                for step, distributed_inputs in enumerate(train_dataset):
+                    self.train_step_for_distribute(distributed_inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
                             "epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
