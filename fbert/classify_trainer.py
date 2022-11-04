@@ -114,11 +114,14 @@ class FBertClassifyTrainer(object):
             pass
         return metrics
 
-    def _init_checkpoint_and_manager(self):
-        checkpoint = tf.train.Checkpoint(model=self.model, optimizer=self.optimizer)
+    @staticmethod
+    def _init_checkpoint_and_manager(model, optimizer, checkpoint_dir):
+        if not os.path.exists(checkpoint_dir):
+            os.mkdir(checkpoint_dir)
+        checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
         checkpoint_manager = tf.train.CheckpointManager(
-            checkpoint=self.checkpoint,
-            directory=self.checkpoint_dir,
+            checkpoint=checkpoint,
+            directory=checkpoint_dir,
             max_to_keep=3
         )
         return checkpoint, checkpoint_manager
@@ -228,12 +231,12 @@ class FBertClassifyTrainer(object):
             input_ids=input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            training=True
+            training=False
         )
         loss = compute_sequence_classification_loss(labels, logits)
-        self.metrics[0].update_states(loss)
-        self.metrics[1].updata_states(labels, logits)
-        self.metrics[2].update_states(labels, logits)
+        self.metrics[0].update_state(loss)
+        self.metrics[1].updata_state(labels, logits)
+        self.metrics[2].update_state(labels, logits)
 
     def do_training(self):
         if self.is_distributed:
@@ -245,7 +248,9 @@ class FBertClassifyTrainer(object):
                 self.model, self.optimizer = self._init_model_and_optimizer()
                 self.metrics = self._init_metrics()
 
-            self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager()
+            self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
+                self.model, self.optimizer, self.checkpoint_dir
+            )
             if self.checkpoint_manager.latest_checkpoint:
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
                 logging.info("Restore from latest model and optimizer checkpoint.")
@@ -254,7 +259,9 @@ class FBertClassifyTrainer(object):
 
             logging.info("Start loading the dataset.")
             per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
-            dataset = self.strategy.experimental_distribute_dataset(self.load_dataset(per_replica_batch_size))
+            dataset = self.strategy.distribute_datasets_from_function(
+                lambda _: self.load_dataset(per_replica_batch_size)
+            )
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
@@ -280,7 +287,10 @@ class FBertClassifyTrainer(object):
             self.model, self.optimizer = self._init_model_and_optimizer()
             self.metrics = self._init_metrics()
 
-            self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager()
+            self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
+                self.model, self.optimizer, self.checkpoint_dir
+            )
+
             if self.checkpoint_manager.latest_checkpoint:
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
                 logging.info("Restore from latest model and optimizer checkpoint.")
@@ -315,7 +325,10 @@ class FBertClassifyTrainer(object):
         self.model, self.optimizer = self._init_model_and_optimizer()
         self.metrics = self._init_metrics()
 
-        self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager()
+        self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
+            self.model, self.optimizer, self.checkpoint_dir
+        )
+
         if self.checkpoint_manager.latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
             logging.info("Restore from latest model and optimizer checkpoint.")
