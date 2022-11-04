@@ -32,8 +32,8 @@ flags.DEFINE_integer("num_warmup_steps", 0, "The number of warmup steps of optim
 flags.DEFINE_float("weight_decay_rate", 0.01, "The number of decay rate of optimizer, specifically, AdamW.")
 
 flags.DEFINE_bool("is_training", True, "Whether to training or evaluating the model.")
-flags.DEFINE_integer("train_batch_size", 32, "The batch size of dataset in training the model.")
-flags.DEFINE_integer("eval_batch_size", 16, "The batch size of dataset in evaluating the model.")
+flags.DEFINE_integer("train_batch_size", 16, "The batch size of dataset in training the model.")
+flags.DEFINE_integer("eval_batch_size", 8, "The batch size of dataset in evaluating the model.")
 
 flags.DEFINE_integer("epochs", 4, "The total epochs when training the model.")
 flags.DEFINE_integer("num_print_steps", 10, "The number of print steps when training or evaluating the model.")
@@ -260,7 +260,7 @@ class FBertClassifyTrainer(object):
             )
             logging.info("Loaded dataset completely.")
 
-            logging.info("Starting training the model.")
+            logging.info("Start training the model.")
             for epoch in range(self.epochs):
                 start = time.time()
                 for step, distributed_inputs in enumerate(dataset):
