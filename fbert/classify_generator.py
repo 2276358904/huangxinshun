@@ -4,7 +4,9 @@ from __future__ import print_function
 
 import collections
 import csv
+import logging
 import os
+import time
 
 import tensorflow as tf
 
@@ -60,6 +62,12 @@ class FBertClassifyDataGenerator(object):
 
     def save_data(self, split="train"):
         raise NotImplementedError()
+
+    def _create_data(self, input_file):
+        with tf.io.gfile.GFile(input_file, "r") as reader:
+            items = csv.reader(reader, delimiter="\t")
+            for item in items:
+                self.items.append(item)
 
     def _load_data(self, text_a, text_b=None, labels=None):
         text = convert_to_unicode(text_a)
@@ -150,11 +158,7 @@ class FBertClassifyDataGeneratorForCola(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "cola", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if split == "test":
@@ -176,11 +180,7 @@ class FBertClassifyDataGeneratorForMnli(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "mnli", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -206,11 +206,7 @@ class FBertClassifyDataGeneratorForMrpc(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "mrpc", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -236,11 +232,7 @@ class FBertClassifyDataGeneratorForQnli(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "qnli", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -269,11 +261,7 @@ class FBertClassifyDataGeneratorForQqp(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "qqp", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -299,11 +287,7 @@ class FBertClassifyDataGeneratorForRte(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "rte", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -332,11 +316,7 @@ class FBertClassifyDataGeneratorForSst2(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "sst2", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -360,11 +340,7 @@ class FBertClassifyDataGeneratorForStsb(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "stsb", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -390,11 +366,7 @@ class FBertClassifyDataGeneratorForWnli(FBertClassifyDataGenerator):
 
     def load_data(self, split="train"):
         input_file = os.path.join(self.input_dir, "wnli", split + ".tsv")
-
-        with tf.io.gfile.GFile(input_file, "r") as reader:
-            items = csv.reader(reader, delimiter="\t")
-            for item in items:
-                self.items.append(item)
+        self._create_data(input_file)
 
         for index, item in enumerate(self.items):
             if index == 0:
@@ -419,42 +391,86 @@ def main(_argv):
         config = FBertConfig()
     else:
         config = FBertConfig.from_json(FLAGS.config_file)
+
     # Init generator.
     if FLAGS.task_name == "cola":
-        generator = FBertClassifyDataGeneratorForCola(config=config, vocab_file=FLAGS.vocab_file,
-                                                      do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                      output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForCola(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     elif FLAGS.task_name == "mnli":
-        generator = FBertClassifyDataGeneratorForMnli(config=config, vocab_file=FLAGS.vocab_file,
-                                                      do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                      output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForMnli(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     elif FLAGS.task_name == "mrpc":
-        generator = FBertClassifyDataGeneratorForMrpc(config=config, vocab_file=FLAGS.vocab_file,
-                                                      do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                      output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForMrpc(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     elif FLAGS.task_name == "qnli":
-        generator = FBertClassifyDataGeneratorForQnli(config=config, vocab_file=FLAGS.vocab_file,
-                                                      do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                      output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForQnli(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     elif FLAGS.task_name == "qqp":
-        generator = FBertClassifyDataGeneratorForQqp(config=config, vocab_file=FLAGS.vocab_file,
-                                                     do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                     output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForQqp(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     elif FLAGS.task_name == "rte":
-        generator = FBertClassifyDataGeneratorForRte(config=config, vocab_file=FLAGS.vocab_file,
-                                                     do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                     output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForRte(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     elif FLAGS.task_name == "sst2":
-        generator = FBertClassifyDataGeneratorForSst2(config=config, vocab_file=FLAGS.vocab_file,
-                                                      do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                      output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForSst2(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     else:  # FLAGS.task_name == "wnli":
-        generator = FBertClassifyDataGeneratorForWnli(config=config, vocab_file=FLAGS.vocab_file,
-                                                      do_lower_case=FLAGS.do_lower_case, input_dir=FLAGS.input_dir,
-                                                      output_dir=FLAGS.output_dir)
+        generator = FBertClassifyDataGeneratorForWnli(
+            config=config,
+            vocab_file=FLAGS.vocab_file,
+            do_lower_case=FLAGS.do_lower_case,
+            input_dir=FLAGS.input_dir,
+            output_dir=FLAGS.output_dir
+        )
     # Load and save data.
+    start = time.time()
+    logging.info("Loading data from file.")
     generator.load_data(FLAGS.split_name)
+    logging.info("Loaded completely.")
+
+    logging.info("Total created {} instances from file.".format(len(generator.instances)))
+
+    logging.info("Saving to file.")
     generator.save_data(FLAGS.split_name)
+    logging.info("Saved completely.")
+    end = time.time()
+
+    logging.info("All instances has been saved to file, cost {:.2f} seconds.".format(end - start))
 
 
 if __name__ == "__main__":
