@@ -147,7 +147,7 @@ def compute_pretraining_loss_for_distribute(labels, logits):
 
 
 def compute_sequence_classification_loss(labels, logits):
-    if tf.shape[1] == 1:
+    if shape_list(logits)[1] == 1:
         loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
     else:
         loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
@@ -159,7 +159,7 @@ def compute_sequence_classification_loss(labels, logits):
 
 
 def compute_sequence_classification_loss_for_distribute(labels, logits):
-    if tf.shape[1] == 1:
+    if shape_list(logits)[1] == 1:
         loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
     else:
         loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(

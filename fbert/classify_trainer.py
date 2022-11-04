@@ -26,10 +26,10 @@ flags.DEFINE_bool("is_matched", False, "Whether to use the matched data in mnli.
 flags.DEFINE_bool("use_tpu", False, "Whether to use tpu training the model.")
 flags.DEFINE_bool("is_distributed", True, "Whether to use the distributed strategy training the model.")
 
-flags.DEFINE_integer("init_lr", 3e-4, "The initial learning rate of optimizer.(3e-4, 1e-4, 5e-5, 3e-5)")
+flags.DEFINE_float("init_lr", 3e-4, "The initial learning rate of optimizer.(3e-4, 1e-4, 5e-5, 3e-5)")
 flags.DEFINE_integer("num_train_steps", 1000, "The number of training steps of optimizer.")
 flags.DEFINE_integer("num_warmup_steps", 0, "The number of warmup steps of optimizer.")
-flags.DEFINE_integer("num_decay_rate", 0.01, "The number of decay rate of optimizer, specifically, AdamW.")
+flags.DEFINE_float("weight_decay_rate", 0.01, "The number of decay rate of optimizer, specifically, AdamW.")
 
 flags.DEFINE_bool("is_training", True, "Whether to training or evaluating the model.")
 flags.DEFINE_integer("train_batch_size", 32, "The batch size of dataset in training the model.")
@@ -188,8 +188,9 @@ class FBertClassifyTrainer(object):
                 loss = tf.nn.compute_average_loss(loss, global_batch_size=self.train_batch_size)
             gradients = tape.gradient(loss, self.model.trainable_variables)
             self.optimizer.apply_gradients(list(zip(gradients, self.model.trainable_variables)))
-            self.metrics[0].update_states(loss * self.strategy.num_replicas_in_sync)
-            self.metrics[1].update_states(labels, logits)
+
+            self.metrics[0].update_state(loss * self.strategy.num_replicas_in_sync)
+            self.metrics[1].update_state(labels, logits)
 
         self.strategy.run(step_fn, args=(distributed_inputs,))
 
@@ -212,8 +213,8 @@ class FBertClassifyTrainer(object):
             loss = compute_sequence_classification_loss(labels, logits)
         gradients = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
-        self.metrics[0].update_states(loss)
-        self.metrics[1].updata_states(labels, logits)
+        self.metrics[0].update_state(loss)
+        self.metrics[1].updata_state(labels, logits)
 
     def test_step(self, inputs):
         if len(inputs) == 4:
@@ -253,13 +254,11 @@ class FBertClassifyTrainer(object):
 
             logging.info("Start loading the dataset.")
             per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
-            dataset = self.strategy.distribute_datasets_from_function(
-                lambda _: self.load_dataset(per_replica_batch_size)
-            )
+            dataset = self.strategy.experimental_distribute_dataset(self.load_dataset(per_replica_batch_size))
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
-            for epoch in self.epochs:
+            for epoch in range(self.epochs):
                 start = time.time()
                 for step, distributed_inputs in enumerate(dataset):
                     self.train_step_for_distribute(distributed_inputs)
@@ -293,7 +292,7 @@ class FBertClassifyTrainer(object):
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
-            for epoch in self.epochs:
+            for epoch in range(self.epochs):
                 start = time.time()
                 for step, inputs in enumerate(dataset):
                     self.train_step(inputs)
@@ -328,7 +327,7 @@ class FBertClassifyTrainer(object):
         logging.info("Loaded dataset completely.")
 
         logging.info("Starting evaluating the model.")
-        for epoch in self.epochs:
+        for epoch in range(self.epochs):
             start = time.time()
             for step, inputs in enumerate(dataset):
                 self.test_step(inputs)
@@ -394,7 +393,7 @@ def main(_argv):
         num_warmup_steps=FLAGS.num_warmup_steps,
         weight_decay_rate=FLAGS.weight_decay_rate,
         is_training=FLAGS.is_training,
-        train_batch_size=FLAGS.training_batch_size,
+        train_batch_size=FLAGS.train_batch_size,
         eval_batch_size=FLAGS.eval_batch_size,
         epochs=FLAGS.epochs,
         num_print_steps=FLAGS.num_print_steps,
