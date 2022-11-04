@@ -140,7 +140,7 @@ class FBertClassifyTrainer(object):
         input_dir = os.path.join(self.input_dir, self.task_name)
         if self.is_training:
             input_file = os.path.join(input_dir, "train_example.bin")
-        else:
+        else:  # is_evaluating
             if self.task_name == "mnli" and self.is_matched is True:
                 input_file = os.path.join(input_dir, "test_matched_example.bin")
             elif self.task_name == "mnli":
