@@ -28,7 +28,7 @@ flags.DEFINE_string(
     None,
     "The model pretraining serialized data file, including multiple data instances."
 )
-
+flags.DEFINE_string("config_file", None, "The file of model's configuration. ")
 # Defines the tokenizer hyperparameter.
 flags.DEFINE_string("vocab_file", None, "The vocabulary table of tokenizer.")
 flags.DEFINE_bool("do_lower_case", True, "Whether to lower case the text.")
@@ -422,7 +422,10 @@ class FBertPretrainingDataGenerator(object):
 
 def main(_argv):
     # Initializes configuration.
-    config = FBertConfig(max_seq_length=128)
+    if FLAGS.config_file:
+        config = FBertConfig.from_json(FLAGS.config_file)
+    else:
+        config = FBertConfig()
 
     # Creates data builder.
     builder = FBertPretrainingDataGenerator(
