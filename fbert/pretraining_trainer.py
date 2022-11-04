@@ -39,13 +39,14 @@ flags.DEFINE_bool("use_tpu", False, "Whether to use tpu(true) or cpu/gpu(false) 
 flags.DEFINE_bool("is_distributed", True, "Whether to use distributed strategy training the model.")
 flags.DEFINE_bool("is_training", True, "Whether is training or evaluating the model.")
 flags.DEFINE_integer("num_print_steps", 10, "The steps in which print any train details, like loss, accuracy.")
+flags.DEFINE_integer("num_saved_steps", 1000, "The number of saved steps the training the model.")
 flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 
 
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
                  input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distributed,
-                 num_print_steps, epochs):
+                 num_print_steps, num_saved_steps, epochs):
         self.config = config
         self.is_training = is_training
         # model configuration hyperparameter
@@ -61,6 +62,7 @@ class FBertPretrainingTrainer(object):
         self.weight_decay_rate = weight_decay_rate
 
         self.num_print_steps = num_print_steps
+        self.num_saved_steps = num_saved_steps
         self.epochs = epochs
         # data files
         self.input_files = input_files
@@ -286,6 +288,11 @@ class FBertPretrainingTrainer(object):
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
                             )
                         )
+                    if step % self.num_saved_steps == 0:
+                        self.checkpoint_manager.save()
+                        logging.info(
+                            "saved model and optimizer at epoch {} step {}.".format(epoch, step)
+                        )
                 epoch_end_time = time.time()
                 logging.info(
                     "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
@@ -294,10 +301,6 @@ class FBertPretrainingTrainer(object):
                 )
                 logging.info(
                     "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
-                )
-                self.checkpoint_manager.save()
-                logging.info(
-                    "saved model and optimizer at epoch {}.".format(epoch)
                 )
                 self.metrics[0].reset_states()
                 self.metrics[1].reset_states()
@@ -339,6 +342,11 @@ class FBertPretrainingTrainer(object):
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
                             )
                         )
+                    if step % self.num_saved_steps == 0:
+                        self.checkpoint_manager.save()
+                        logging.info(
+                            "saved model and optimizer at epoch {} step {}.".format(epoch, step)
+                        )
                 epoch_end_time = time.time()
                 logging.info(
                     "epoch: {}, loss: {:.2f}, accuracy: {:.2f}.".format(
@@ -347,10 +355,6 @@ class FBertPretrainingTrainer(object):
                 )
                 logging.info(
                     "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
-                )
-                self.checkpoint_manager.save()
-                logging.info(
-                    "saved model and optimizer at epoch {}.".format(epoch)
                 )
                 self.metrics[0].reset_states()
                 self.metrics[1].reset_states()
@@ -422,6 +426,7 @@ def main(_argv):
         use_tpu=FLAGS.use_tpu,
         is_distributed=FLAGS.is_distributed,
         num_print_steps=FLAGS.num_print_steps,
+        num_saved_steps=FLAGS.num_saved_steps,
         epochs=FLAGS.epochs
     )
     #
