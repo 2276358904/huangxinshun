@@ -91,14 +91,14 @@ class FBertClassifyDataGenerator(object):
 
         for instance in self.instances:
             feature = collections.OrderedDict()
-            feature["input_ids"] = tf.train.Feature(int64_list=tf.train.Int64List(value=instance["input_ids"]))
+            feature["input_ids"] = tf.train.Feature(int64_list=tf.train.Int64List(value=instance.input_ids))
             feature["attention_mask"] = tf.train.Feature(
-                int64_list=tf.train.Int64List(value=instance["attention_mask"])
+                int64_list=tf.train.Int64List(value=instance.attention_mask)
             )
             feature["token_type_ids"] = tf.train.Feature(
-                int64_list=tf.train.Int64List(value=instance["token_type_ids"])
+                int64_list=tf.train.Int64List(value=instance.token_type_ids)
             )
-            feature["labels"] = tf.train.Feature(int64_list=tf.train.Int64List(value=instance["labels"]))
+            feature["labels"] = tf.train.Feature(int64_list=tf.train.Int64List(value=instance.labels))
 
             example = tf.train.Example(features=tf.train.Features(feature=feature))
             serialized_example = example.SerializeToString()
@@ -158,11 +158,11 @@ class FBertClassifyDataGeneratorForCola(FBertClassifyDataGenerator):
 
         for index, item in enumerate(self.items):
             if split == "test":
-                text = item[1]
+                text = item[3]
                 labels = [0]
             else:
                 text = item[3]
-                labels = [int(item[0])]
+                labels = [int(item[1])]
             self._load_data(text, labels=labels)
 
     def save_data(self, split="train"):
