@@ -35,8 +35,8 @@ flags.DEFINE_float("weight_decay_rate", 0.01, "The weight decay rate of optimize
 # Defines the training and evaluation hyperparameter.
 flags.DEFINE_integer("train_batch_size", 16, "Batch size of training dataset.")
 flags.DEFINE_integer("eval_batch_size", 8, "Batch size of evaluation dataset.")
-flags.DEFINE_bool("use_tpu", True, "Whether to use tpu(true) or cpu/gpu(false) training the model.")
-flags.DEFINE_bool("is_distribute", True, "Whether to use distributed strategy training the model.")
+flags.DEFINE_bool("use_tpu", False, "Whether to use tpu(true) or cpu/gpu(false) training the model.")
+flags.DEFINE_bool("is_distributed", True, "Whether to use distributed strategy training the model.")
 flags.DEFINE_bool("is_training", True, "Whether is training or evaluating the model.")
 flags.DEFINE_integer("num_print_steps", 10, "The steps in which print any train details, like loss, accuracy.")
 flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
@@ -44,7 +44,7 @@ flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
-                 input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distribute,
+                 input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distributed,
                  num_print_steps, epochs):
         self.config = config
         self.is_training = is_training
@@ -72,7 +72,7 @@ class FBertPretrainingTrainer(object):
         self.checkpoint_dir = checkpoint_dir
 
         self.use_tpu = use_tpu
-        self.is_distribute = is_distribute
+        self.is_distributed = is_distributed
         # tpu strategy
         self.strategy = None
 
@@ -245,7 +245,7 @@ class FBertPretrainingTrainer(object):
         self.metrics[1].update_state(labels, logits)
 
     def do_training(self):
-        if self.is_distribute:
+        if self.is_distributed:
             if self.use_tpu:
                 self.strategy = self._init_tpu_strategy()
             else:
@@ -420,7 +420,7 @@ def main(_argv):
         eval_batch_size=FLAGS.eval_batch_size,
         checkpoint_dir=FLAGS.checkpoint_dir,
         use_tpu=FLAGS.use_tpu,
-        is_distribute=FLAGS.is_distribute,
+        is_distributed=FLAGS.is_distributed,
         num_print_steps=FLAGS.num_print_steps,
         epochs=FLAGS.epochs
     )
