@@ -281,7 +281,7 @@ class FBertPretrainingTrainer(object):
                     self.train_step_for_distribute(distributed_inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
-                            "epoch: {}, step: {}, loss: {:.2f}.".format(epoch, step, self.metrics[0].result())
+                            "epoch: {}, step: {}, loss: {:.4f}.".format(epoch, step, self.metrics[0].result())
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
@@ -290,7 +290,7 @@ class FBertPretrainingTrainer(object):
                         )
                 epoch_end_time = time.time()
                 logging.info(
-                    "epoch: {}, loss: {:.2f}.".format(epoch, self.metrics[0].result())
+                    "epoch: {}, loss: {:.4f}.".format(epoch, self.metrics[0].result())
                 )
                 logging.info(
                     "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
@@ -330,7 +330,7 @@ class FBertPretrainingTrainer(object):
                     self.train_step(inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
-                            "epoch: {}, step: {}, loss: {:.2f}.".format(epoch, step, self.metrics[0].result())
+                            "epoch: {}, step: {}, loss: {:.4f}.".format(epoch, step, self.metrics[0].result())
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
@@ -339,7 +339,7 @@ class FBertPretrainingTrainer(object):
                         )
                 epoch_end_time = time.time()
                 logging.info(
-                    "epoch: {}, loss: {:.2f}.".format(epoch, self.metrics[0].result(), self.metrics[1].result())
+                    "epoch: {}, loss: {:.4f}.".format(epoch, self.metrics[0].result(), self.metrics[1].result())
                 )
                 logging.info(
                     "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)
@@ -376,11 +376,11 @@ class FBertPretrainingTrainer(object):
                 self.test_step(inputs)
                 if step % self.num_print_steps == 0:
                     logging.info(
-                        "epoch: {}, step: {}, loss: {:.2f}.".format(epoch, step, self.metrics[0].result())
+                        "epoch: {}, step: {}, loss: {:.4f}.".format(epoch, step, self.metrics[0].result())
                     )
             epoch_end_time = time.time()
             logging.info(
-                "epoch: {}, loss: {:.2f}.".format(epoch, self.metrics[0].result(), self.metrics[1].result())
+                "epoch: {}, loss: {:.4f}.".format(epoch, self.metrics[0].result(), self.metrics[1].result())
             )
             logging.info(
                 "times {} in 1 epoch.".format(epoch_end_time - epoch_start_time)

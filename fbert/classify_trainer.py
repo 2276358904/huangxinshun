@@ -267,7 +267,7 @@ class FBertClassifyTrainer(object):
                     self.train_step_for_distribute(distributed_inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
-                            "Training epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}".format(
+                            "Training epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
                             )
                         )
@@ -304,7 +304,7 @@ class FBertClassifyTrainer(object):
                     self.train_step(inputs)
                     if step % self.num_print_steps == 0:
                         logging.info(
-                            "Training epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}".format(
+                            "Training epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}".format(
                                 epoch, step, self.metrics[0].result(), self.metrics[1].result()
                             )
                         )
@@ -343,19 +343,19 @@ class FBertClassifyTrainer(object):
                 if step % self.num_print_steps == 0:
                     if self.task_name == "cola":
                         logging.info(
-                            "Evaluating epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}, matthew: {:.2f}"
+                            "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}, matthew: {:.4f}"
                             .format(epoch, step, self.metrics[0].result(), self.metrics[1].result(),
                                     self.metrics[2].result())
                         )
                     elif self.task_name == "stsb":
                         logging.info(
-                            "Evaluating epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}, pearson: {:.2f}"
+                            "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}, pearson: {:.4f}"
                             .format(epoch, step, self.metrics[0].result(), self.metrics[1].result(),
                                     self.metrics[2].result())
                         )
                     else:
                         logging.info(
-                            "Evaluating epoch: {}, step: {}, loss: {:.2f}, accuracy: {:.2f}"
+                            "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}"
                             .format(epoch, step, self.metrics[0].result(), self.metrics[1].result())
                         )
                 if step % self.num_save_steps == 0:
@@ -363,17 +363,17 @@ class FBertClassifyTrainer(object):
                     logging.info("Saved model and optimizer in epoch: {} step: {}".format(epoch, step))
             if self.task_name == "cola":
                 logging.info(
-                    "Evaluating epoch: {}, loss: {:.2f}, accuracy: {:.2f}, matthew: {:.2f}"
+                    "Evaluating epoch: {}, loss: {:.4f}, accuracy: {:.4f}, matthew: {:.4f}"
                     .format(epoch, self.metrics[0].result(), self.metrics[1].result(), self.metrics[2].result())
                 )
             elif self.task_name == "stsb":
                 logging.info(
-                    "Evaluating epoch: {}, loss: {:.2f}, accuracy: {:.2f}, pearson: {:.2f}"
+                    "Evaluating epoch: {}, loss: {:.4f}, accuracy: {:.4f}, pearson: {:.4f}"
                     .format(epoch, self.metrics[0].result(), self.metrics[1].result(), self.metrics[2].result())
                 )
             else:
                 logging.info(
-                    "Evaluating epoch: {}, loss: {:.2f}, accuracy: {:.2f}"
+                    "Evaluating epoch: {}, loss: {:.4f}, accuracy: {:.4f}"
                     .format(epoch, self.metrics[0].result(), self.metrics[1].result())
                 )
             end = time.time()
