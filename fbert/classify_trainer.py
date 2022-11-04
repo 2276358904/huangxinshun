@@ -43,7 +43,7 @@ flags.DEFINE_integer("num_save_steps", 100, "The number of saved steps the train
 class FBertClassifyTrainer(object):
     def __init__(self, config, input_dir, task_name, is_matched, checkpoint_dir,
                  use_tpu, is_distributed, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
-                 is_training, train_batch_size, eval_batch_size, epochs, num_print_steps, num_save_steps):
+                 train_batch_size, eval_batch_size, epochs, num_print_steps, num_save_steps):
         self.config = config
 
         self.input_dir = input_dir
@@ -68,7 +68,6 @@ class FBertClassifyTrainer(object):
         self.is_distributed = is_distributed
         self.strategy = None
 
-        self.is_training = is_training
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
         self.epochs = epochs
@@ -137,9 +136,9 @@ class FBertClassifyTrainer(object):
             data[name] = t
         return data
 
-    def load_dataset(self, batch_size):
+    def load_dataset(self, batch_size, is_training):
         input_dir = os.path.join(self.input_dir, self.task_name)
-        if self.is_training:
+        if is_training:
             input_file = os.path.join(input_dir, "train_example.bin")
         else:  # is_evaluating
             if self.task_name == "mnli" and self.is_matched is True:
@@ -160,7 +159,7 @@ class FBertClassifyTrainer(object):
         dataset = dataset.map(
             lambda data: self._decode_record(data, name_to_features)
         )
-        if self.is_training:
+        if is_training:
             dataset.repeat(2)
             dataset.shuffle(1000)
         dataset = dataset.batch(batch_size, drop_remainder=True)
@@ -264,7 +263,7 @@ class FBertClassifyTrainer(object):
             logging.info("Start loading the dataset.")
             per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
             dataset = self.strategy.distribute_datasets_from_function(
-                lambda _: self.load_dataset(per_replica_batch_size)
+                lambda _: self.load_dataset(per_replica_batch_size, is_training=True)
             )
             logging.info("Loaded dataset completely.")
 
@@ -309,7 +308,7 @@ class FBertClassifyTrainer(object):
                 logging.info("Create a new model and optimizer.")
 
             logging.info("Start loading the dataset.")
-            dataset = self.load_dataset(self.train_batch_size)
+            dataset = self.load_dataset(self.train_batch_size, is_training=True)
             logging.info("Loaded dataset completely.")
 
             logging.info("Starting training the model.")
@@ -354,7 +353,7 @@ class FBertClassifyTrainer(object):
             logging.info("Create a new model and optimizer.")
 
         logging.info("Start loading the dataset.")
-        dataset = self.load_dataset(self.eval_batch_size)
+        dataset = self.load_dataset(self.eval_batch_size, is_training=False)
         logging.info("Loaded dataset completely.")
 
         logging.info("Starting evaluating the model.")
@@ -362,7 +361,7 @@ class FBertClassifyTrainer(object):
             start = time.time()
             for step, inputs in enumerate(dataset):
                 self.test_step(inputs)
-                if (step + 1) % self.num_print_steps == 0:
+                if step % self.num_print_steps == 0:
                     if self.task_name == "cola":
                         logging.info(
                             "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}, matthew: {:.4f}"
@@ -423,7 +422,6 @@ def main(_argv):
         num_train_steps=FLAGS.num_train_steps,
         num_warmup_steps=FLAGS.num_warmup_steps,
         weight_decay_rate=FLAGS.weight_decay_rate,
-        is_training=FLAGS.is_training,
         train_batch_size=FLAGS.train_batch_size,
         eval_batch_size=FLAGS.eval_batch_size,
         epochs=FLAGS.epochs,
@@ -431,7 +429,7 @@ def main(_argv):
         num_save_steps=FLAGS.num_save_steps
     )
 
-    if trainer.is_training:
+    if FLAGS.is_training:
         trainer.do_training()
     else:
         trainer.do_evaluating()

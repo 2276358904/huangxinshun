@@ -27,25 +27,20 @@ class FBertEmbedding(tf.keras.layers.Layer):
         self.embed_size = config.embed_size
         self.initializer_range = config.initializer_range
 
-        self.weight = None
-        self.token_type_embeddings = None
-
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_rate, name="dropout")
         self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_epsilon, name="layer_norm")
 
     def build(self, input_shape):
-        with tf.name_scope("word_embedding"):
-            self.weight = self.add_weight(
-                name="embedding",
-                shape=[self.vocab_size, self.embed_size],
-                initializer=get_initializer(self.initializer_range)
-            )
-        with tf.name_scope("token_type_embedding"):
-            self.token_type_embeddings = self.add_weight(
-                name="embedding",
-                shape=[self.type_vocab_size, self.embed_size],
-                initializer=get_initializer(self.initializer_range)
-            )
+        self.weight = self.add_weight(
+            name="word_embedding",
+            shape=[self.vocab_size, self.embed_size],
+            initializer=get_initializer(self.initializer_range)
+        )
+        self.token_type_embeddings = self.add_weight(
+            name="token_type_embedding",
+            shape=[self.type_vocab_size, self.embed_size],
+            initializer=get_initializer(self.initializer_range)
+        )
         super().build(input_shape)
 
     def call(
@@ -547,4 +542,3 @@ class FBertForSequenceClassification(tf.keras.Model):
         pooling_outputs = self.dense(outputs[1])
 
         return pooling_outputs
-
