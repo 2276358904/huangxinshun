@@ -516,3 +516,33 @@ class FBertForPreTraining(tf.keras.Model):
         nsp_predictions = self.nsp(pooling_outputs)
         return mlm_predictions, nsp_predictions
 
+
+class FBertForSequenceClassification(tf.keras.Model):
+    def __init__(self, config, num_labels, **kwargs):
+        super().__init__(**kwargs)
+
+        self.num_labels = num_labels
+
+        self.dense = tf.keras.layers.Dense(
+            self.num_labels,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense"
+        )
+        self.fbert = FBertMainLayer(config, name="fbert")
+
+    def call(
+            self,
+            input_ids,
+            attention_mask=None,
+            token_type_ids=None,
+            training=False
+    ):
+        outputs = self.fbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            training=training
+        )
+        pooling_outputs = self.dense(outputs[1])
+        return pooling_outputs
+

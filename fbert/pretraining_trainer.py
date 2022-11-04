@@ -103,10 +103,10 @@ class FBertPretrainingTrainer(object):
         input_files = [tf.io.gfile.glob(input_file) for input_file in input_files]
 
         name_to_features = {
-            "input_ids": tf.io.FixedLenFeature([128], tf.int64),
-            "attention_mask": tf.io.FixedLenFeature([128], tf.int64),
-            "token_type_ids": tf.io.FixedLenFeature([128], tf.int64),
-            "mlm_labels": tf.io.FixedLenFeature([128], tf.int64),
+            "input_ids": tf.io.FixedLenFeature([self.config.max_seq_length], tf.int64),
+            "attention_mask": tf.io.FixedLenFeature([self.config.max_seq_length], tf.int64),
+            "token_type_ids": tf.io.FixedLenFeature([self.config.max_seq_length], tf.int64),
+            "mlm_labels": tf.io.FixedLenFeature([self.config.max_seq_length], tf.int64),
             "nsp_labels": tf.io.FixedLenFeature([1], tf.int64),
         }
 
@@ -170,7 +170,7 @@ class FBertPretrainingTrainer(object):
         return checkpoint, checkpoint_manager
 
     @tf.function
-    def train_step_for_distribute(self, iterator):
+    def train_step_for_distribute(self, distributed_inputs):
         def step_fn(inputs):
             if len(inputs) == 5:
                 input_ids = inputs["input_ids"]
@@ -197,7 +197,7 @@ class FBertPretrainingTrainer(object):
             self.metrics[0].update_state(loss * self.strategy.num_replicas_in_sync)
             self.metrics[1].update_state(labels, logits)
 
-        self.strategy.run(step_fn, args=(next(iterator),))
+        self.strategy.run(step_fn, args=(distributed_inputs,))
 
     @tf.function
     def train_step(self, inputs):
@@ -271,7 +271,7 @@ class FBertPretrainingTrainer(object):
             logging.info("Start loading the dataset.")
             per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
             train_dataset = self.strategy.distribute_datasets_from_function(
-                self.load_dataset(per_replica_batch_size, is_training=True)
+                lambda _: self.load_dataset(per_replica_batch_size, is_training=True)
             )
             logging.info("Loaded dataset completely.")
 

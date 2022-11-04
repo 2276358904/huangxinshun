@@ -146,6 +146,29 @@ def compute_pretraining_loss_for_tpu(labels, logits):
     return total_loss
 
 
+def compute_sequence_classification_loss(labels, logits):
+    if tf.shape[1] == 1:
+        loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
+    else:
+        loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+            from_logits=True,
+            reduction=tf.keras.losses.Reduction.NONE
+        )
+    loss = tf.reduce_mean(loss_fn(labels, logits))
+    return loss
+
+
+def compute_sequence_classification_loss_for_distribute(labels, logits):
+    if tf.shape[1] == 1:
+        loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
+    else:
+        loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(
+            from_logits=True,
+            reduction=tf.keras.losses.Reduction.NONE
+        )
+    return loss_fn(labels, logits)
+
+
 class FBertPretrainingAccuracy(tf.keras.metrics.Metric):
     def __init__(self, name="accuracy", **kwargs):
         super().__init__(name=name, **kwargs)

@@ -235,7 +235,7 @@ class FBertPretrainingDataGenerator(object):
                             token_type_ids.append(1)
 
                         tokens.append("[SEP]")
-                        token_type_ids.append(0)
+                        token_type_ids.append(1)
 
                         tokens, mlm_labels, nsp_labels = self._create_mlm_and_nsp_labels(tokens, is_random_next)
                         input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
