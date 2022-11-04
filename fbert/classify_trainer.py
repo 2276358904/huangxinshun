@@ -36,8 +36,8 @@ flags.DEFINE_integer("train_batch_size", 32, "The batch size of dataset in train
 flags.DEFINE_integer("eval_batch_size", 16, "The batch size of dataset in evaluating the model.")
 
 flags.DEFINE_integer("epochs", 4, "The total epochs when training the model.")
-flags.DEFINE_integer("num_print_steps", 2, "The number of print steps when training or evaluating the model.")
-flags.DEFINE_integer("num_save_steps", 1000, "The number of saved steps the training the model.")
+flags.DEFINE_integer("num_print_steps", 10, "The number of print steps when training or evaluating the model.")
+flags.DEFINE_integer("num_save_steps", 100, "The number of saved steps the training the model.")
 
 
 class FBertClassifyTrainer(object):

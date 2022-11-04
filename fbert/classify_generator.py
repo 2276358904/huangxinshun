@@ -85,6 +85,11 @@ class FBertClassifyDataGenerator(object):
             attention_mask.append(0)
             token_type_ids.append(0)
 
+        assert len(input_ids) == self.config.max_seq_length
+        assert len(attention_mask) == self.config.max_seq_length
+        assert len(token_type_ids) == self.config.max_seq_length
+        assert len(labels) == 1
+
         self.instances.append(
             FBertClassifyData(
                 input_ids=input_ids,
@@ -162,7 +167,7 @@ class FBertClassifyDataGeneratorForCola(FBertClassifyDataGenerator):
 
         for index, item in enumerate(self.items):
             if split == "test":
-                text = item[3]
+                text = item[1]
                 labels = [0]
             else:
                 text = item[3]
