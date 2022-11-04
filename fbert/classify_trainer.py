@@ -88,19 +88,20 @@ class FBertClassifyTrainer(object):
         strategy = tf.distribute.MirroredStrategy()
         return strategy
 
-    def _init_model_and_optimizer(self):
-        if self.task_name == "stsb":
+    @staticmethod
+    def _init_model_and_optimizer(config, task_name, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate):
+        if task_name == "stsb":
             num_labels = 1
-        elif self.task_name == "mnli":
+        elif task_name == "mnli":
             num_labels = 3
         else:
             num_labels = 2
-        model = FBertForSequenceClassification(self.config, num_labels)
+        model = FBertForSequenceClassification(config, num_labels)
         optimizer, schedule = create_optimizer(
-            init_lr=self.init_lr,
-            num_train_steps=self.num_train_steps,
-            num_warmup_steps=self.num_warmup_steps,
-            weight_decay_rate=self.weight_decay_rate
+            init_lr=init_lr,
+            num_train_steps=num_train_steps,
+            num_warmup_steps=num_warmup_steps,
+            weight_decay_rate=weight_decay_rate
         )
         return model, optimizer
 
@@ -241,7 +242,14 @@ class FBertClassifyTrainer(object):
             else:
                 self.strategy = self._init_gpu_strategy()
             with self.strategy.scope():
-                self.model, self.optimizer = self._init_model_and_optimizer()
+                self.model, self.optimizer = self._init_model_and_optimizer(
+                    config=self.config,
+                    task_name=self.task_name,
+                    init_lr=self.init_lr,
+                    num_train_steps=self.num_train_steps,
+                    num_warmup_steps=self.num_warmup_steps,
+                    weight_decay_rate=self.weight_decay_rate
+                )
                 self.metrics = self._init_metrics()
 
             self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
@@ -280,7 +288,14 @@ class FBertClassifyTrainer(object):
                 self.metrics[1].reset_states()
             logging.info("Training the model completely.")
         else:
-            self.model, self.optimizer = self._init_model_and_optimizer()
+            self.model, self.optimizer = self._init_model_and_optimizer(
+                config=self.config,
+                task_name=self.task_name,
+                init_lr=self.init_lr,
+                num_train_steps=self.num_train_steps,
+                num_warmup_steps=self.num_warmup_steps,
+                weight_decay_rate=self.weight_decay_rate
+            )
             self.metrics = self._init_metrics()
 
             self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
@@ -318,7 +333,14 @@ class FBertClassifyTrainer(object):
             logging.info("Training the model completely.")
 
     def do_evaluating(self):
-        self.model, self.optimizer = self._init_model_and_optimizer()
+        self.model, self.optimizer = self._init_model_and_optimizer(
+            config=self.config,
+            task_name=self.task_name,
+            init_lr=self.init_lr,
+            num_train_steps=self.num_train_steps,
+            num_warmup_steps=self.num_warmup_steps,
+            weight_decay_rate=self.weight_decay_rate
+        )
         self.metrics = self._init_metrics()
 
         self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
@@ -340,7 +362,7 @@ class FBertClassifyTrainer(object):
             start = time.time()
             for step, inputs in enumerate(dataset):
                 self.test_step(inputs)
-                if step % self.num_print_steps == 0:
+                if (step + 1) % self.num_print_steps == 0:
                     if self.task_name == "cola":
                         logging.info(
                             "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}, matthew: {:.4f}"

@@ -11,7 +11,7 @@ import tensorflow as tf
 from fbert.modeling_utils import shape_list
 from modeling_configs import FBertConfig
 from modeling import FBertEmbedding, FBertAttention, FBertFourierTransform, FBertEncoder, \
-    FBertMainLayer, FBertForPreTraining
+    FBertMainLayer, FBertForPreTraining, FBertForSequenceClassification
 
 
 class FBertModelTest(tf.test.TestCase):
@@ -92,6 +92,15 @@ class FBertModelTest(tf.test.TestCase):
         outputs = model(random_input_ids)
         self.assertAllEqual(shape_list(outputs[0]), [input_shape[0], input_shape[1], config.vocab_size])
         self.assertAllEqual(shape_list(outputs[1]), [input_shape[0], 2])
+
+    def test_classify_layer(self):
+        config = FBertConfig()
+        model = FBertForSequenceClassification(config, 2)
+        random_input_ids = np.random.randint(0, 30000, [16, 128])
+        random_input_ids = tf.convert_to_tensor(random_input_ids)
+        input_shape = shape_list(random_input_ids)
+        outputs = model(random_input_ids)
+        self.assertAllEqual(shape_list(outputs), [input_shape[0], 2])
 
     @staticmethod
     def generate_dataset(train_batch_size=64, test_batch_size=32, mode="train"):
