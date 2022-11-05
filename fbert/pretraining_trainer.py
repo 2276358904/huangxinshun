@@ -100,7 +100,7 @@ class FBertPretrainingTrainer(object):
 
     def load_dataset(self, batch_size, is_training=False):
         # Notes that when use TPU nodes train the model, the input files is not any local file
-        # rather than any remote file from Google Cloud Storage, which start with the prefix "gcs:".
+        # rather than any remote file from Google Cloud Storage, which start with the prefix "gs:".
         input_files = self.input_files.split(",")
         input_files = [tf.io.gfile.glob(input_file) for input_file in input_files]
 
