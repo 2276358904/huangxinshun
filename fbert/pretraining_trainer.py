@@ -289,7 +289,7 @@ class FBertPretrainingTrainer(object):
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
-                        self.model.save_weights(self.save_path + ".h5")
+                        self.model.save_weights(self.save_path)
                         logging.info(
                             "saved model and optimizer at epoch {} step {}.".format(epoch, step)
                         )
@@ -339,7 +339,7 @@ class FBertPretrainingTrainer(object):
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
-                        self.model.save_weights(self.save_path + ".h5")
+                        self.model.save_weights(self.save_path)
                         logging.info(
                             "saved model and optimizer at epoch {} step {}.".format(epoch, step)
                         )
