@@ -512,6 +512,21 @@ class FBertForPreTraining(tf.keras.Model):
         return mlm_predictions, nsp_predictions
 
 
+class FBertSequenceClassificationHead(tf.keras.layers.Layer):
+    def __init__(self, config, num_labels, **kwargs):
+        super().__init__(**kwargs)
+
+        self.classify = tf.keras.layers.Dense(
+            num_labels,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense"
+        )
+
+    def call(self, hidden_states, **kwargs):
+        classify_outputs = self.classify(hidden_states)
+        return classify_outputs
+
+
 class FBertForSequenceClassification(tf.keras.Model):
     def __init__(self, config, num_labels, **kwargs):
         super().__init__(**kwargs)

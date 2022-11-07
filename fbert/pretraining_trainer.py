@@ -10,7 +10,7 @@ import tensorflow as tf
 
 from absl import flags, app
 
-from modeling import FBertForPreTraining
+from modeling import FBertMainLayer, FBertMLMHead, FBertNSPHead
 from modeling_configs import FBertConfig
 from modeling_utils import compute_pretraining_loss, compute_pretraining_loss_for_distribute
 from optimization import create_optimizer
@@ -20,6 +20,8 @@ FLAGS = flags.FLAGS
 
 # Defines the needed files and saved directory.
 flags.DEFINE_string("input_files", None, "The dataset of model, one or more files.")
+flags.DEFINE_string("init_checkpoint", None, "The initial checkpoint of model.")
+
 flags.DEFINE_string("checkpoint_dir", None, "The directory of checkpoint of model and optimizer.")
 flags.DEFINE_string("config_file", None, "The configuration file of model.If none, will use the default configuration.")
 
@@ -42,14 +44,11 @@ flags.DEFINE_integer("num_print_steps", 10, "The steps in which print any train 
 flags.DEFINE_integer("num_saved_steps", 1000, "The number of saved steps the training the model.")
 flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 
-flags.DEFINE_string("save_path", None, "The path of saved model.")
-flags.DEFINE_string("save_name", None, "The name of saved model.")
-
 
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
                  input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distributed,
-                 num_print_steps, num_saved_steps, epochs, save_path):
+                 num_print_steps, num_saved_steps, epochs, init_checkpoint):
         self.config = config
         self.is_training = is_training
         # model configuration hyperparameter
@@ -73,7 +72,7 @@ class FBertPretrainingTrainer(object):
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
 
-        self.save_path = save_path
+        self.init_checkpoint = init_checkpoint
         #
         self.checkpoint_dir = checkpoint_dir
 
@@ -84,6 +83,8 @@ class FBertPretrainingTrainer(object):
 
         # model, optimizer and metrics
         self.model = None
+        self.mlm_head = None
+        self.nsp_head = None
         self.optimizer = None
         self.metrics = []
 
@@ -154,20 +155,22 @@ class FBertPretrainingTrainer(object):
 
     @staticmethod
     def _init_model_and_optimizer(config, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate):
-        model = FBertForPreTraining(config)
+        model = FBertMainLayer(config)
+        mlm_head = FBertMLMHead(config, model.embedding)
+        nsp_head = FBertNSPHead(config)
         optimizer, lr_schedule = create_optimizer(
             init_lr=init_lr,
             num_train_steps=num_train_steps,
             num_warmup_steps=num_warmup_steps,
             weight_decay_rate=weight_decay_rate
         )
-        return model, optimizer
+        return model, mlm_head, nsp_head, optimizer
 
     @staticmethod
-    def _init_checkpoint_and_manager(model, optimizer, checkpoint_dir):
+    def _init_checkpoint_and_manager(model, mlm_head, nsp_head, optimizer, checkpoint_dir):
         if not os.path.exists(checkpoint_dir):
             os.mkdir(checkpoint_dir)
-        checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
+        checkpoint = tf.train.Checkpoint(model=model, mlm_head=mlm_head, nsp_head=nsp_head, optimizer=optimizer)
         checkpoint_manager = tf.train.CheckpointManager(
             checkpoint=checkpoint,
             directory=checkpoint_dir,
@@ -195,6 +198,9 @@ class FBertPretrainingTrainer(object):
                     token_type_ids=token_type_ids,
                     training=True
                 )
+                mlm_logits = self.mlm_head(logits[0])
+                nsp_logits = self.nsp_head(logits[1])
+                logits = (mlm_logits, nsp_logits)
                 loss = compute_pretraining_loss_for_distribute(labels, logits)
                 loss = tf.nn.compute_average_loss(loss, global_batch_size=self.train_batch_size)
             grads = tape.gradient(loss, self.model.trainable_variables)
@@ -222,6 +228,9 @@ class FBertPretrainingTrainer(object):
                 token_type_ids=token_type_ids,
                 training=True
             )
+            mlm_logits = self.mlm_head(logits[0])
+            nsp_logits = self.nsp_head(logits[1])
+            logits = (mlm_logits, nsp_logits)
             loss = compute_pretraining_loss(labels, logits)
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
@@ -244,6 +253,9 @@ class FBertPretrainingTrainer(object):
             token_type_ids=token_type_ids,
             training=True
         )
+        mlm_logits = self.mlm_head(logits[0])
+        nsp_logits = self.nsp_head(logits[1])
+        logits = (mlm_logits, nsp_logits)
         loss = compute_pretraining_loss(labels, logits)
         self.metrics[0].update_state(loss)
 
@@ -254,7 +266,7 @@ class FBertPretrainingTrainer(object):
             else:
                 self.strategy = self._init_gpu_strategy()
             with self.strategy.scope():
-                self.model, self.optimizer = self._init_model_and_optimizer(
+                self.model, self.mlm_head, self.nsp_head, self.optimizer = self._init_model_and_optimizer(
                     self.config,
                     self.init_lr,
                     self.num_train_steps,
@@ -263,7 +275,7 @@ class FBertPretrainingTrainer(object):
                 )
                 self.metrics.extend([tf.keras.metrics.Mean()])
             self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
-                self.model, self.optimizer, self.checkpoint_dir
+                self.model, self.mlm_head, self.nsp_head, self.optimizer, self.checkpoint_dir
             )
             if self.checkpoint_manager.latest_checkpoint:
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
@@ -289,7 +301,6 @@ class FBertPretrainingTrainer(object):
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
-                        self.model.save_weights(self.save_path)
                         logging.info(
                             "saved model and optimizer at epoch {} step {}.".format(epoch, step)
                         )
@@ -306,7 +317,7 @@ class FBertPretrainingTrainer(object):
                     "When use tpu to train the model, you must set both use_tpu and is_distribute to true."
                 )
         else:
-            self.model, self.optimizer = self._init_model_and_optimizer(
+            self.model, self.mlm_head, self.nsp_head, self.optimizer = self._init_model_and_optimizer(
                 self.config,
                 self.init_lr,
                 self.num_train_steps,
@@ -315,8 +326,9 @@ class FBertPretrainingTrainer(object):
             )
             self.metrics.extend([tf.keras.metrics.Mean()])
             self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
-                self.model, self.optimizer, self.checkpoint_dir
+                self.model, self.mlm_head, self.nsp_head, self.optimizer, self.checkpoint_dir
             )
+
             if self.checkpoint_manager.latest_checkpoint:
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
                 logging.info("Restoring model and optimizer completely from checkpoint manager.")
@@ -339,7 +351,6 @@ class FBertPretrainingTrainer(object):
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
-                        self.model.save_weights(self.save_path)
                         logging.info(
                             "saved model and optimizer at epoch {} step {}.".format(epoch, step)
                         )
@@ -353,7 +364,7 @@ class FBertPretrainingTrainer(object):
                 self.metrics[0].reset_states()
 
     def do_evaluating(self):
-        self.model, self.optimizer = self._init_model_and_optimizer(
+        self.model, self.mlm_head, self.nsp_head, self.optimizer = self._init_model_and_optimizer(
             self.config,
             self.init_lr,
             self.num_train_steps,
@@ -362,7 +373,7 @@ class FBertPretrainingTrainer(object):
         )
         self.metrics.extend([tf.keras.metrics.Mean()])
         self.checkpoint, self.checkpoint_manager = self._init_checkpoint_and_manager(
-            self.model, self.optimizer, self.checkpoint_dir
+            self.model, self.mlm_head, self.nsp_head, self.optimizer, self.checkpoint_dir
         )
         if self.checkpoint_manager.latest_checkpoint:
             self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
@@ -416,7 +427,7 @@ def main(_argv):
         num_print_steps=FLAGS.num_print_steps,
         num_saved_steps=FLAGS.num_saved_steps,
         epochs=FLAGS.epochs,
-        save_path=FLAGS.save_path
+        init_checkpoint=FLAGS.init_checkpoint
     )
     #
     if FLAGS.is_training:
@@ -428,5 +439,5 @@ def main(_argv):
 if __name__ == "__main__":
     flags.mark_flag_as_required("input_files")
     flags.mark_flag_as_required("checkpoint_dir")
-    flags.mark_flag_as_required("save_path")
+    flags.mark_flag_as_required("init_checkpoint")
     app.run(main)
