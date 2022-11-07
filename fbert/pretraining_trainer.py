@@ -42,11 +42,14 @@ flags.DEFINE_integer("num_print_steps", 10, "The steps in which print any train 
 flags.DEFINE_integer("num_saved_steps", 1000, "The number of saved steps the training the model.")
 flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 
+flags.DEFINE_string("save_path", None, "The path of saved model.")
+flags.DEFINE_string("save_name", None, "The name of saved model.")
+
 
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
                  input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distributed,
-                 num_print_steps, num_saved_steps, epochs):
+                 num_print_steps, num_saved_steps, epochs, save_path):
         self.config = config
         self.is_training = is_training
         # model configuration hyperparameter
@@ -70,6 +73,7 @@ class FBertPretrainingTrainer(object):
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
 
+        self.save_path = save_path
         #
         self.checkpoint_dir = checkpoint_dir
 
@@ -285,6 +289,7 @@ class FBertPretrainingTrainer(object):
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
+                        self.model.save_weights(self.save_path + ".h5")
                         logging.info(
                             "saved model and optimizer at epoch {} step {}.".format(epoch, step)
                         )
@@ -334,6 +339,7 @@ class FBertPretrainingTrainer(object):
                         )
                     if step % self.num_saved_steps == 0:
                         self.checkpoint_manager.save()
+                        self.model.save_weights(self.save_path + ".h5")
                         logging.info(
                             "saved model and optimizer at epoch {} step {}.".format(epoch, step)
                         )
@@ -409,7 +415,8 @@ def main(_argv):
         is_distributed=FLAGS.is_distributed,
         num_print_steps=FLAGS.num_print_steps,
         num_saved_steps=FLAGS.num_saved_steps,
-        epochs=FLAGS.epochs
+        epochs=FLAGS.epochs,
+        save_path=FLAGS.save_path
     )
     #
     if FLAGS.is_training:
@@ -421,4 +428,5 @@ def main(_argv):
 if __name__ == "__main__":
     flags.mark_flag_as_required("input_files")
     flags.mark_flag_as_required("checkpoint_dir")
+    flags.mark_flag_as_required("save_path")
     app.run(main)
