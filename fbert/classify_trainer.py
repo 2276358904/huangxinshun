@@ -11,7 +11,8 @@ import tensorflow as tf
 from absl import flags, app
 
 from modeling_configs import FBertConfig
-from modeling_utils import compute_sequence_classification_loss, compute_sequence_classification_loss_for_distribute
+from modeling_utils import compute_sequence_classification_loss, compute_sequence_classification_loss_for_distribute, \
+    PearsonMetric, F1Metric, MatthewsMetric
 from modeling import FBertMainLayer, FBertSequenceClassificationHead
 from optimization import create_optimizer
 
@@ -117,6 +118,12 @@ class FBertClassifyTrainer(object):
             metrics.append(tf.keras.metrics.MeanSquaredError())
         else:
             metrics.append(tf.keras.metrics.SparseCategoricalAccuracy())
+        if self.task_name == "stsb":
+            metrics.append(PearsonMetric())
+        elif self.task_name == "cola":
+            metrics.append(MatthewsMetric())
+        elif self.task_name == "qqp" or self.task_name == "mrpc":
+            metrics.append(F1Metric())
         return metrics
 
     @staticmethod
@@ -252,7 +259,8 @@ class FBertClassifyTrainer(object):
         loss = compute_sequence_classification_loss(labels, logits)
         self.metrics[0].update_state(loss)
         self.metrics[1].update_state(labels, logits)
-        self.metrics[2].update_state(labels, logits)
+        if self.metrics[2]:
+            self.metrics[2].update_state(labels, logits)
 
     def do_training(self):
         if self.is_distributed:
@@ -409,7 +417,13 @@ class FBertClassifyTrainer(object):
                         )
                     elif self.task_name == "stsb":
                         logging.info(
-                            "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}, pearson: {:.4f}"
+                            "Evaluating epoch: {}, step: {}, loss: {:.4f}, mse: {:.4f}, pearson: {:.4f}"
+                            .format(epoch, step, self.metrics[0].result(), self.metrics[1].result(),
+                                    self.metrics[2].result())
+                        )
+                    elif self.task_name == "qqp" or self.task_name == "mrpc":
+                        logging.info(
+                            "Evaluating epoch: {}, step: {}, loss: {:.4f}, accuracy: {:.4f}, f1: {:.4f}"
                             .format(epoch, step, self.metrics[0].result(), self.metrics[1].result(),
                                     self.metrics[2].result())
                         )
@@ -424,12 +438,20 @@ class FBertClassifyTrainer(object):
             if self.task_name == "cola":
                 logging.info(
                     "Evaluating epoch: {}, loss: {:.4f}, accuracy: {:.4f}, matthew: {:.4f}"
-                    .format(epoch, self.metrics[0].result(), self.metrics[1].result(), self.metrics[2].result())
+                    .format(epoch, self.metrics[0].result(), self.metrics[1].result(),
+                            self.metrics[2].result())
                 )
             elif self.task_name == "stsb":
                 logging.info(
-                    "Evaluating epoch: {}, loss: {:.4f}, accuracy: {:.4f}, pearson: {:.4f}"
-                    .format(epoch, self.metrics[0].result(), self.metrics[1].result(), self.metrics[2].result())
+                    "Evaluating epoch: {}, loss: {:.4f}, mse: {:.4f}, pearson: {:.4f}"
+                    .format(epoch, self.metrics[0].result(), self.metrics[1].result(),
+                            self.metrics[2].result())
+                )
+            elif self.task_name == "qqp" or self.task_name == "mrpc":
+                logging.info(
+                    "Evaluating epoch: {}, loss: {:.4f}, accuracy: {:.4f}, f1: {:.4f}"
+                    .format(epoch, self.metrics[0].result(), self.metrics[1].result(),
+                            self.metrics[2].result())
                 )
             else:
                 logging.info(

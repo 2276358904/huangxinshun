@@ -2,7 +2,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import keras.metrics
 import tensorflow as tf
+
+from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import f1_score, matthews_corrcoef
 
 
 def shape_list(tensor):
@@ -169,4 +173,49 @@ def compute_sequence_classification_loss_for_distribute(labels, logits):
     return loss_fn(labels, logits)
 
 
+class PearsonMetric(tf.keras.metrics.Metric):
+    def __init__(self, name="pearson", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.pearson_value = self.add_weight(name="p", initializer="zero")
 
+    def update_state(self, labels, logits):
+        value = pearsonr(labels, logits)
+        self.pearson_value.assign(value.statistic)
+
+    def result(self):
+        return self.pearson_value
+
+    def reset_states(self):
+        self.pearson_value.assign(0.0)
+
+
+class MatthewsMetric(tf.keras.metrics.Metric):
+    def __init__(self, name="matthews", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.matthews_value = self.add_weight(name="m", initializer="zero")
+
+    def update_state(self, labels, logits):
+        value = matthews_corrcoef(labels, logits)
+        self.matthews_value.assign(value)
+
+    def result(self):
+        return self.matthews_value
+
+    def reset_states(self):
+        self.matthews_value.assign(0.0)
+
+
+class F1Metric(tf.keras.metrics.Metric):
+    def __init__(self, name="f1", **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.f1_value = self.add_weight(name="f", initializer="zero")
+
+    def update_state(self, labels, logits):
+        value = f1_score(labels, logits)
+        self.f1_value.assign(value)
+
+    def result(self):
+        return self.f1_value
+
+    def reset_states(self):
+        self.f1_value.assign(0.0)
