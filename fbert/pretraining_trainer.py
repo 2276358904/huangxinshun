@@ -20,7 +20,6 @@ FLAGS = flags.FLAGS
 
 # Defines the needed files and saved directory.
 flags.DEFINE_string("input_files", None, "The dataset of model, one or more files.")
-flags.DEFINE_string("init_checkpoint", None, "The initial checkpoint of model.")
 
 flags.DEFINE_string("checkpoint_dir", None, "The directory of checkpoint of model and optimizer.")
 flags.DEFINE_string("config_file", None, "The configuration file of model.If none, will use the default configuration.")
@@ -48,7 +47,7 @@ flags.DEFINE_integer("epochs", 10, "The total train epochs of model.")
 class FBertPretrainingTrainer(object):
     def __init__(self, config, is_training, num_proc, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
                  input_files, train_batch_size, eval_batch_size, checkpoint_dir, use_tpu, is_distributed,
-                 num_print_steps, num_saved_steps, epochs, init_checkpoint):
+                 num_print_steps, num_saved_steps, epochs):
         self.config = config
         self.is_training = is_training
         # model configuration hyperparameter
@@ -72,7 +71,6 @@ class FBertPretrainingTrainer(object):
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
 
-        self.init_checkpoint = init_checkpoint
         #
         self.checkpoint_dir = checkpoint_dir
 
@@ -427,7 +425,6 @@ def main(_argv):
         num_print_steps=FLAGS.num_print_steps,
         num_saved_steps=FLAGS.num_saved_steps,
         epochs=FLAGS.epochs,
-        init_checkpoint=FLAGS.init_checkpoint
     )
     #
     if FLAGS.is_training:
@@ -439,5 +436,4 @@ def main(_argv):
 if __name__ == "__main__":
     flags.mark_flag_as_required("input_files")
     flags.mark_flag_as_required("checkpoint_dir")
-    flags.mark_flag_as_required("init_checkpoint")
     app.run(main)
