@@ -19,6 +19,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string("input_dir", None, "The input directory of glue data.")
 flags.DEFINE_string("config_file", None, "The configuration file of model.")
 flags.DEFINE_string("checkpoint_dir", None, "The saved directory of model and optimizer.")
+flags.DEFINE_string("model_path", None, "The saved path of model.")
 
 flags.DEFINE_string("task_name", None, "The concrete name of glue.")
 flags.DEFINE_bool("is_matched", False, "Whether to use the matched data in mnli.")
@@ -41,7 +42,7 @@ flags.DEFINE_integer("num_save_steps", 100, "The number of saved steps the train
 
 
 class FBertClassifyTrainer(object):
-    def __init__(self, config, input_dir, task_name, is_matched, checkpoint_dir,
+    def __init__(self, config, input_dir, task_name, is_matched, checkpoint_dir, model_path,
                  use_tpu, is_distributed, init_lr, num_train_steps, num_warmup_steps, weight_decay_rate,
                  train_batch_size, eval_batch_size, epochs, num_print_steps, num_save_steps):
         self.config = config
@@ -63,6 +64,8 @@ class FBertClassifyTrainer(object):
         self.checkpoint_dir = checkpoint_dir
         self.checkpoint = None
         self.checkpoint_manager = None
+
+        self.model_path = model_path
 
         self.use_tpu = use_tpu
         self.is_distributed = is_distributed
@@ -258,7 +261,8 @@ class FBertClassifyTrainer(object):
                 self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
                 logging.info("Restore from latest model and optimizer checkpoint.")
             else:
-                logging.info("Create a new model and optimizer.")
+                self.model.load_weights(self.model_path)
+                logging.info("Restore from pretrained model.")
 
             logging.info("Start loading the dataset.")
             per_replica_batch_size = self.train_batch_size // self.strategy.num_replicas_in_sync
@@ -419,6 +423,7 @@ def main(_argv):
         use_tpu=FLAGS.use_tpu,
         is_distributed=FLAGS.is_distributed,
         init_lr=FLAGS.init_lr,
+        model_path=FLAGS.model_path,
         num_train_steps=FLAGS.num_train_steps,
         num_warmup_steps=FLAGS.num_warmup_steps,
         weight_decay_rate=FLAGS.weight_decay_rate,
@@ -439,4 +444,5 @@ if __name__ == "__main__":
     flags.mark_flag_as_required("input_dir")
     flags.mark_flag_as_required("checkpoint_dir")
     flags.mark_flag_as_required("task_name")
+    flags.mark_flag_as_required("model_path")
     app.run(main)
