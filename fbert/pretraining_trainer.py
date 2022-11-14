@@ -29,7 +29,7 @@ flags.DEFINE_integer("num_proc", 2, "The number of processed cpus.")
 
 # Defines the optimizer hyperparameter
 flags.DEFINE_float("init_lr", 1e-4, "The learning rate of optimizer.")
-flags.DEFINE_integer("num_train_steps", 100000, "Number of training step.")
+flags.DEFINE_integer("num_train_steps", 40000, "Number of training step.")
 flags.DEFINE_integer("num_warmup_steps", 10000, "Number of warmup step.")
 flags.DEFINE_float("weight_decay_rate", 0.01, "The weight decay rate of optimizer AdamW.")
 
