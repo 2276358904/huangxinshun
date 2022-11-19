@@ -16,28 +16,24 @@ from modeling import FBertEmbedding, FBertAttention, FBertFourierTransform, FBer
 
 class FBertModelTest(tf.test.TestCase):
     def test_config_to_dict(self):
-        config = FBertConfig(embed_size=256, hidden_size=1024)
+        config = FBertConfig(hidden_size=1024)
         config_dict = config.to_dict()
-        self.assertAllEqual(config_dict["embed_size"], 256)
         self.assertAllEqual(config_dict["hidden_size"], 1024)
-        self.assertAllEqual(config_dict["max_seq_length"], 4096)
+        self.assertAllEqual(config_dict["max_seq_length"], 512)
 
     def test_config_to_string(self):
-        config = FBertConfig(embed_size=256, hidden_size=1024)
+        config = FBertConfig(hidden_size=1024)
         config_string = config.to_string()
         config_dict = json.loads(config_string)
-        self.assertAllEqual(config_dict["embed_size"], 256)
         self.assertAllEqual(config_dict["hidden_size"], 1024)
         self.assertAllEqual(config_dict["num_hidden_layers"], 12)
-        self.assertAllEqual(config_dict["num_hidden_groups"], 1)
 
     def test_config_to_json(self):
-        config = FBertConfig(embed_size=256, hidden_size=1024)
+        config = FBertConfig(hidden_size=1024)
         with tempfile.NamedTemporaryFile("w", delete=False) as file_obj:
             config.to_json(file_obj)
         with tf.io.gfile.GFile(file_obj.name, "r") as file_obj:
             config_dict = json.load(file_obj)
-        self.assertAllEqual(config_dict["embed_size"], 256)
         self.assertAllEqual(config_dict["hidden_size"], 1024)
 
     def test_embedding_layer(self):
@@ -47,7 +43,7 @@ class FBertModelTest(tf.test.TestCase):
         inputs = next(iter(train_dataset))[0]
         batch_size, seq_length = inputs.shape.as_list()
         outputs = embedding_layer(inputs)
-        self.assertAllEqual(outputs.shape.as_list(), [batch_size, seq_length, config.embed_size])
+        self.assertAllEqual(outputs.shape.as_list(), [batch_size, seq_length, config.hidden_size])
 
     def test_attention_layer(self):
         config = FBertConfig()
@@ -68,7 +64,7 @@ class FBertModelTest(tf.test.TestCase):
     def test_encoder(self):
         config = FBertConfig()
         encoder = FBertEncoder(config)
-        input_ids = tf.random.normal([64, 128, 128], 0.0, 0.2)
+        input_ids = tf.random.normal([64, 128, config.hidden_size], 0.0, 0.2)
         input_shape = shape_list(input_ids)
         attention_mask = tf.ones([input_shape[0], 1, 1, input_shape[1]], tf.int32)
         outputs = encoder(input_ids, attention_mask=attention_mask)

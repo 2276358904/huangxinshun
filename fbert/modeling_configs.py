@@ -13,11 +13,10 @@ class FBertConfig(object):
             self,
             vocab_size=30522,
             type_vocab_size=2,
-            embed_size=128,
             hidden_size=768,
+            bottleneck_size=128,
+            intermediate_size=2048,
             num_hidden_layers=12,
-            num_hidden_groups=1,
-            num_inner_layers=1,
             num_heads=12,
             hidden_act="gelu",
             hidden_dropout_rate=0.1,
@@ -37,17 +36,10 @@ class FBertConfig(object):
                 that can used to represent "input_ids".
             type_vocab_size:
                 The vocabulary size of "token_type_ids".
-            embed_size:
-                Dimensionality of embedding layer.
             hidden_size:
                 Dimensionality of inner encoder layer.
             num_hidden_layers:
                 The number of hidden layers in a group.
-            num_hidden_groups:
-                The number of groups for the hidden layers, parameters are shared in
-                same group.
-            num_inner_layers:
-                The number of inner repetition of encoder layer(e.g., attention, ff).
             num_heads:
                 The number of attention heads for each attention layer.
             hidden_act:
@@ -70,11 +62,10 @@ class FBertConfig(object):
         """
         self.vocab_size = vocab_size
         self.type_vocab_size = type_vocab_size
-        self.embed_size = embed_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
-        self.num_hidden_groups = num_hidden_groups
-        self.num_inner_layers = num_inner_layers
+        self.bottleneck_size = bottleneck_size
+        self.intermediate_size = intermediate_size
         self.num_heads = num_heads
         self.hidden_act = hidden_act
         self.hidden_dropout_rate = hidden_dropout_rate

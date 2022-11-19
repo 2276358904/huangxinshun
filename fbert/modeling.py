@@ -24,7 +24,7 @@ class FBertEmbedding(tf.keras.layers.Layer):
 
         self.vocab_size = config.vocab_size
         self.type_vocab_size = config.type_vocab_size
-        self.embed_size = config.embed_size
+        self.hidden_size = config.hidden_size
         self.initializer_range = config.initializer_range
 
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_rate, name="dropout")
@@ -33,12 +33,12 @@ class FBertEmbedding(tf.keras.layers.Layer):
     def build(self, input_shape):
         self.weight = self.add_weight(
             name="word_embedding",
-            shape=[self.vocab_size, self.embed_size],
+            shape=[self.vocab_size, self.hidden_size],
             initializer=get_initializer(self.initializer_range)
         )
         self.token_type_embeddings = self.add_weight(
             name="token_type_embedding",
-            shape=[self.type_vocab_size, self.embed_size],
+            shape=[self.type_vocab_size, self.hidden_size],
             initializer=get_initializer(self.initializer_range)
         )
         super().build(input_shape)
@@ -212,8 +212,6 @@ class FBertFourierTransform(tf.keras.layers.Layer):
             kernel_initializer=get_initializer(config.initializer_range),
             name="f_dense"
         )
-        self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_rate, name="dropout")
-        self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_epsilon, name="layer_nrom")
 
     @classmethod
     def _two_dim_matmul(cls, x, matrix_dim_one, matrix_dim_two):
@@ -251,17 +249,61 @@ class FBertFourierTransform(tf.keras.layers.Layer):
         fourier_outputs = tf.math.real(fourier_outputs)
 
         fourier_outputs = self.f_dense(fourier_outputs)
-        fourier_outputs = self.dropout(fourier_outputs, training=training)
-        fourier_outputs = self.layer_norm(fourier_outputs + hidden_states)
         return fourier_outputs
+
+
+class FBERTIntermediate(tf.keras.layers.Layer):
+    def __init__(self, config, **kwargs):
+        super().__init__(**kwargs)
+        self.intermediate = tf.keras.layers.Dense(
+            config.intermediate_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="intermediate"
+        )
+        self.activation = get_activation("gelu")
+
+        self.dense = tf.keras.layers.Dense(
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense"
+        )
+        self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_rate, name="dropout")
+        self.layer_norm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_epsilon, name="layer_norm")
+
+    def call(self, hidden_states, training=False, **kwargs):
+        intermediate_outputs = self.intermediate(hidden_states)
+        intermediate_outputs = self.activation(intermediate_outputs)
+
+        dense_outputs = self.dense(intermediate_outputs)
+        dense_outputs = self.dropout(dense_outputs, training=training)
+        dense_outputs = self.layer_norm(dense_outputs + hidden_states)
+        return dense_outputs
 
 
 class FBertLayer(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
 
-        self.attention = FBertAttention(config, name="attention")
+        self.bottleneck_top = tf.keras.layers.Dense(
+            config.bottleneck_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="bottleneck_top"
+        )
+
         self.fourier_transform = FBertFourierTransform(config, name="fourier_transform")
+        self.attention = FBertAttention(config, name="attention")
+        self.intermediate = FBERTIntermediate(config, name="intermediate")
+
+        self.bottleneck_bottom = tf.keras.layers.Dense(
+            config.bottleneck_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="bottleneck_bottom"
+        )
+        self.dense = tf.keras.layers.Dense(
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense"
+        )
 
     def call(
             self,
@@ -270,8 +312,10 @@ class FBertLayer(tf.keras.layers.Layer):
             position_embeddings=None,
             training=False
     ):
+        bottleneck_outputs = self.bottleneck_top(hidden_states)
+
         fourier_transform_outputs = self.fourier_transform(
-            hidden_states,
+            bottleneck_outputs,
             training=training
         )
         attention_outputs = self.attention(
@@ -280,33 +324,14 @@ class FBertLayer(tf.keras.layers.Layer):
             position_embeddings=position_embeddings,
             training=training
         )
-        return attention_outputs
+        intermediate_outputs = self.intermediate(
+            attention_outputs,
+            training=training
+        )
 
-
-class FBertGroup(tf.keras.layers.Layer):
-    def __init__(self, config, **kwargs):
-        super().__init__(**kwargs)
-
-        self.layers = [FBertLayer(config, name="layer_{}".format(i)) for i in range(config.num_inner_layers)]
-
-    def call(
-            self,
-            hidden_states,
-            attention_mask=None,
-            position_embeddings=None,
-            training=False
-    ):
-        for layer in self.layers:
-            layer_outputs = layer(
-                hidden_states,
-                attention_mask=attention_mask,
-                position_embeddings=position_embeddings,
-                training=training
-            )
-            hidden_states = layer_outputs
-
-        layer_outputs = hidden_states
-        return layer_outputs
+        bottleneck_outputs = self.bottleneck_bottom(intermediate_outputs)
+        final_outputs = self.dense(bottleneck_outputs)
+        return final_outputs
 
 
 class FBertEncoder(tf.keras.layers.Layer):
@@ -315,7 +340,6 @@ class FBertEncoder(tf.keras.layers.Layer):
         super().__init__(**kwargs)
 
         self.num_hidden_layers = config.num_hidden_layers
-        self.num_hidden_groups = config.num_hidden_groups
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_heads
 
@@ -323,19 +347,7 @@ class FBertEncoder(tf.keras.layers.Layer):
 
         self.head_size = int(config.hidden_size / config.num_heads)
 
-        self.mapping_to_hidden_size = tf.keras.layers.Dense(
-            config.hidden_size,
-            kernel_initializer=get_initializer(config.initializer_range),
-            name="mapping_to_hidden_size"
-        )
-        self.groups = [FBertGroup(config, name="group_{}".format(i)) for i in range(config.num_hidden_groups)]
-
-        self.dense = tf.keras.layers.Dense(
-            config.hidden_size,
-            kernel_initializer=get_initializer(config.initializer_range),
-            activation=get_activation(config.hidden_act),
-            name="dense"
-        )
+        self.layers = [FBertLayer(config, name="layer_{}".format(i)) for i in range(config.num_hidden_layers)]
 
     def call(
             self,
@@ -343,11 +355,6 @@ class FBertEncoder(tf.keras.layers.Layer):
             attention_mask=None,
             training=False
     ):
-        # Mapping the final dimensions of hidden_states to hidden_size.
-        # This is very useful when the input dimension is considerable large.
-        # [..., embed_size] -> [..., hidden_size], embed_size << hidden_size.
-        hidden_states = self.mapping_to_hidden_size(hidden_states)
-
         input_shape = shape_list(hidden_states)
 
         assert len(input_shape) == 3
@@ -360,20 +367,17 @@ class FBertEncoder(tf.keras.layers.Layer):
         position_embeddings = tf.tile(position_embeddings, [input_shape[0], 1, 1, 1])
         position_embeddings = tf.transpose(position_embeddings, [0, 2, 1, 3])
 
-        for idx in range(self.num_hidden_layers):
-            group_idx = int(idx / (self.num_hidden_layers / self.num_hidden_groups))
-            group_outputs = self.groups[group_idx](
+        for layer in self.layers:
+            layer_outputs = layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 position_embeddings=position_embeddings,
                 training=training
             )
-            hidden_states = group_outputs
+            hidden_states = layer_outputs
 
-        group_outputs = hidden_states
-
-        group_outputs = self.dense(group_outputs)
-        return group_outputs
+        layer_outputs = hidden_states
+        return layer_outputs
 
 
 class FBertMainLayer(tf.keras.layers.Layer):
@@ -435,10 +439,10 @@ class FBertMLMHead(tf.keras.layers.Layer):
         super().__init__(**kwargs)
 
         self.vocab_size = config.vocab_size
-        self.embed_size = config.embed_size
+        self.hidden_size = config.hidden_size
 
         self.dense = tf.keras.layers.Dense(
-            config.embed_size,
+            config.hidden_size,
             kernel_initializer=get_initializer(config.initializer_range),
             name="dense"
         )
@@ -460,7 +464,7 @@ class FBertMLMHead(tf.keras.layers.Layer):
         hidden_states = self.layer_norm(hidden_states)
 
         seq_length = shape_list(tensor=hidden_states)[1]
-        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, self.embed_size])
+        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, self.hidden_size])
 
         hidden_states = tf.matmul(a=hidden_states, b=self.embedding.weight, transpose_b=True)
         hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, seq_length, self.vocab_size])
